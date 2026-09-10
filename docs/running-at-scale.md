@@ -29,7 +29,7 @@ exploration.
 ### 1. Install
 
 ```bash
-git clone https://github.com/almirahalkina/corporate-ownership-entity-resolution
+git clone https://github.com/almira-halkina/corporate-ownership-entity-resolution
 cd corporate-ownership-entity-resolution
 make install
 ```

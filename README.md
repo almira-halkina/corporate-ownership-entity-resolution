@@ -15,7 +15,7 @@ different spellings.
 acquire → normalize → block → match → cluster → load → analyse → evaluate
 ```
 
-[![CI](https://github.com/almirahalkina/corporate-ownership-entity-resolution/actions/workflows/ci.yml/badge.svg)](https://github.com/almirahalkina/corporate-ownership-entity-resolution/actions/workflows/ci.yml)
+[![CI](https://github.com/almira-halkina/corporate-ownership-entity-resolution/actions/workflows/ci.yml/badge.svg)](https://github.com/almira-halkina/corporate-ownership-entity-resolution/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -27,7 +27,7 @@ No downloads, no Docker, no API keys. A synthetic corpus in the exact wire
 format of both real sources is committed to the repository.
 
 ```bash
-git clone https://github.com/almirahalkina/corporate-ownership-entity-resolution
+git clone https://github.com/almira-halkina/corporate-ownership-entity-resolution
 cd corporate-ownership-entity-resolution
 make install
 make demo

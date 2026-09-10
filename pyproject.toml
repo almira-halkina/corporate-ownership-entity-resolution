@@ -70,7 +70,7 @@ all = [
 oer = "ownership_er.cli:app"
 
 [project.urls]
-Repository = "https://github.com/almirahalkina/corporate-ownership-entity-resolution"
+Repository = "https://github.com/almira-halkina/corporate-ownership-entity-resolution"
 
 [tool.setuptools.packages.find]
 where = ["src"]
