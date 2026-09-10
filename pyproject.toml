@@ -1,0 +1,140 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ownership-er"
+version = "0.1.0"
+description = "Record-linkage pipeline resolving beneficial-ownership entities across UK Companies House and OpenSanctions into a traversable ownership graph."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Almira Halkina" }]
+keywords = [
+  "entity-resolution",
+  "record-linkage",
+  "beneficial-ownership",
+  "sanctions",
+  "knowledge-graph",
+  "followthemoney",
+]
+classifiers = [
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Intended Audience :: Science/Research",
+  "Topic :: Scientific/Engineering :: Information Analysis",
+]
+
+dependencies = [
+  "duckdb>=1.1",
+  "pyarrow>=15",
+  "pandas>=2.1",
+  "numpy>=1.26",
+  "typer>=0.12",
+  "rich>=13.7",
+  "pydantic>=2.6",
+  "pydantic-settings>=2.2",
+  "pyyaml>=6.0",
+  "rapidfuzz>=3.9",
+  "jellyfish>=1.0",
+  "python-dateutil>=2.9",
+  "requests>=2.31",
+  "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+# Probabilistic matcher (Fellegi-Sunter + EM). Heavier install, so kept separable.
+splink = ["splink>=4.0"]
+# FollowTheMoney data model + OpenSanctions' own matcher, for the cross-source layer
+# and for benchmarking against a production reference implementation.
+ftm = ["followthemoney>=3.6", "nomenklatura>=3.11"]
+# Graph load + traversal
+graph = ["neo4j>=5.19"]
+# LLM adjudication of borderline pairs
+llm = ["anthropic>=0.34"]
+dev = [
+  "pytest>=8.1",
+  "pytest-cov>=5.0",
+  "ruff>=0.4",
+  "mypy>=1.9",
+  "types-requests",
+  "types-PyYAML",
+  "pre-commit>=3.7",
+]
+all = [
+  "ownership-er[splink,ftm,graph,llm,dev]",
+]
+
+[project.scripts]
+oer = "ownership_er.cli:app"
+
+[project.urls]
+Repository = "https://github.com/almirahalkina/corporate-ownership-entity-resolution"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+ownership_er = ["py.typed", "resources/*.yaml", "resources/*.csv", "graph/cypher/*.cypher"]
+
+# ---------------------------------------------------------------------------
+# Tooling
+# ---------------------------------------------------------------------------
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+  "E", "F", "W",   # pycodestyle / pyflakes
+  "I",             # isort
+  "N",             # pep8-naming
+  "UP",            # pyupgrade
+  "B",             # bugbear
+  "C4",            # comprehensions
+  "SIM",           # simplify
+  "PTH",           # use pathlib
+  "RUF",
+]
+ignore = ["E501"]  # line length handled by formatter
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B018", "SLF001"]
+# Typer's entire API is `def cmd(x: int = typer.Option(...))`. B008 exists to
+# catch accidental shared mutable defaults; here the call is the framework's
+# documented idiom and there is no alternative spelling.
+"src/ownership_er/cli.py" = ["B008"]
+# The Cyrillic transliteration table necessarily contains characters that look
+# like Latin ones — that is precisely what it exists to map.
+"src/ownership_er/normalize/names.py" = ["RUF001"]
+
+[tool.mypy]
+python_version = "3.10"
+packages = ["ownership_er"]
+mypy_path = "src"
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+no_implicit_optional = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = [
+  "duckdb.*", "splink.*", "neo4j.*",
+  "followthemoney.*", "anthropic.*", "pyarrow.*", "jellyfish.*", "icu.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+markers = [
+  "slow: exercises the full pipeline; excluded from the default run",
+  "needs_neo4j: requires a live Neo4j instance (docker compose up neo4j)",
+  "needs_llm: requires ANTHROPIC_API_KEY",
+]

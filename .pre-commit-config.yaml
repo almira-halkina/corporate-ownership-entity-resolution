@@ -1,0 +1,44 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        # Source snapshots are gigabytes and must never be committed. The
+        # fixture corpus is the only data in the repo and is well under this.
+        args: [--maxkb=2048]
+      - id: detect-private-key
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.1
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.14.1
+    hooks:
+      - id: mypy
+        files: ^src/
+        additional_dependencies:
+          - pydantic>=2.6
+          - pydantic-settings>=2.2
+          - types-requests
+          - types-PyYAML
+
+  - repo: local
+    hooks:
+      - id: no-data-commits
+        name: block commits of raw source data
+        entry: >-
+          Raw source data must not be committed. It is reproducible via
+          `make data` and is gigabytes in size.
+        language: fail
+        files: ^data/(raw|interim|processed|warehouse)/

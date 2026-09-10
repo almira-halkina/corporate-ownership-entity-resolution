@@ -1,0 +1,46 @@
+# Data — never commit. Everything under data/ is reproducible via `make data`.
+data/raw/
+data/interim/
+data/processed/
+data/warehouse/
+*.duckdb
+*.duckdb.wal
+*.zip
+*.gz
+
+# Except the committed fixture corpus, which must be reproducible offline.
+!fixtures/**
+
+# Outputs that are regenerated
+outputs/eval/*.json
+outputs/eval/*.csv
+outputs/figures/*.png
+outputs/analysis/*.csv
+.cache/
+.llm_cache/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Secrets
+.env
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

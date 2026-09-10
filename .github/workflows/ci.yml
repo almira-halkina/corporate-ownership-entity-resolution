@@ -1,0 +1,157 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  quality:
+    name: lint & type-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -e '.[splink,graph,llm,dev]'
+      - run: ruff check src tests
+      - run: ruff format --check src tests
+      - run: mypy
+
+  test:
+    name: tests (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - run: pip install -e '.[splink,graph,llm,dev]'
+      - run: pytest -q --cov=ownership_er --cov-report=xml
+      - uses: actions/upload-artifact@v4
+        if: matrix.python-version == '3.11'
+        with:
+          name: coverage
+          path: coverage.xml
+
+  pipeline:
+    name: end-to-end on fixtures
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -e '.[splink,dev]'
+
+      # The committed fixtures must be reproducible from the generator. If they
+      # drift, every published metric silently refers to a corpus nobody can
+      # regenerate.
+      - name: Fixtures are reproducible from seed
+        run: |
+          cp fixtures/ground_truth.json /tmp/committed_truth.json
+          oer make-fixtures --out fixtures --companies 1200 --people 400 --sanctioned 60
+          diff -q /tmp/committed_truth.json fixtures/ground_truth.json
+
+      - name: Run the pipeline
+        run: oer run-all --fixtures --matcher rules
+
+      # Quality floors enforced in CI, not just asserted in a README.
+      - name: Enforce quality floors
+        run: |
+          python - <<'PY'
+          import json, sys
+          from pathlib import Path
+          report = json.loads(Path("outputs/eval/evaluation_rules.json").read_text())
+          person = report["clusters"]["Person"]
+          pairwise = report["pairwise"]["Person"]
+          floors = {
+              "bcubed_f1": (person["bcubed_f1"], 0.92),
+              "precision": (pairwise["precision"], 0.90),
+              "recall": (pairwise["recall"], 0.80),
+          }
+          failed = False
+          for name, (value, floor) in floors.items():
+              status = "ok " if value >= floor else "FAIL"
+              print(f"{status} {name}: {value:.4f} (floor {floor})")
+              failed |= value < floor
+          sys.exit(1 if failed else 0)
+          PY
+
+      - name: Graph load (dry run — no server needed)
+        run: oer load-graph --dry-run
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-outputs
+          path: outputs/
+
+  ftm-conformance:
+    name: FollowTheMoney conformance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      # followthemoney needs PyICU, which needs a system libicu. That is
+      # precisely why the core package does not depend on it — but the schema
+      # conformance guarantee has to be enforced somewhere, so it is enforced
+      # here, on an image where the dependency is available.
+      - run: sudo apt-get update && sudo apt-get install -y libicu-dev pkg-config
+      - run: pip install -e '.[ftm,dev]'
+      - run: oer normalize --fixtures
+      - run: oer validate-ftm
+
+  neo4j:
+    name: graph load against a live Neo4j
+    runs-on: ubuntu-latest
+    services:
+      neo4j:
+        image: neo4j:5.26-community
+        env:
+          NEO4J_AUTH: neo4j/ownership-dev-password
+        ports:
+          - 7687:7687
+          - 7474:7474
+        options: >-
+          --health-cmd "wget -qO- http://localhost:7474 || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+          --health-start-period 30s
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -e '.[graph,dev]'
+      - run: oer run-all --fixtures --matcher rules --no-evaluate-after
+      - run: oer load-graph
+        env:
+          OER_NEO4J_URI: bolt://localhost:7687
+          OER_NEO4J_PASSWORD: ownership-dev-password
+      - name: Traversals return results
+        env:
+          OER_NEO4J_URI: bolt://localhost:7687
+          OER_NEO4J_PASSWORD: ownership-dev-password
+        run: pytest -q -m needs_neo4j --no-header

@@ -1,0 +1,35 @@
+services:
+  neo4j:
+    image: neo4j:5.26-community
+    container_name: ownership-neo4j
+    ports:
+      - "7474:7474"   # HTTP browser
+      - "7687:7687"   # Bolt
+    environment:
+      NEO4J_AUTH: neo4j/ownership-dev-password
+      NEO4J_PLUGINS: '["apoc"]'
+      # Heap and page cache sized for a laptop holding the full UK graph
+      # (~6M nodes, ~10M relationships). The page cache matters more than the
+      # heap here: traversals are pointer-chasing, so keeping the store
+      # resident is what determines whether a six-hop query returns in
+      # milliseconds or seconds.
+      NEO4J_server_memory_heap_initial__size: 2G
+      NEO4J_server_memory_heap_max__size: 4G
+      NEO4J_server_memory_pagecache_size: 2G
+      NEO4J_db_transaction_timeout: 300s
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+      - ./outputs:/import
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  neo4j_data:
+  neo4j_logs:
