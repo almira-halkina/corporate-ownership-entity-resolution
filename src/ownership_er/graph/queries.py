@@ -45,7 +45,8 @@ BENEFICIAL_OWNERS = """
 // following control edges upward, with no further owner above them.
 MATCH path = (owner:Person)-[:CONTROLS*1..6]->(target:Company)
 WHERE target.reg_number = $reg_number
-  AND NOT EXISTS { MATCH (:Entity)-[:CONTROLS]->(owner) }
+  AND all(r IN relationships(path) WHERE r.is_active)
+  AND NOT EXISTS { MATCH (:Entity)-[c:CONTROLS]->(owner) WHERE c.is_active }
 WITH owner, path,
      reduce(lo = 1.0, r IN relationships(path) |
             lo * coalesce(r.min_percent, 0.0) / 100.0) AS min_share,
@@ -70,6 +71,7 @@ ORDER BY coalesce(max_percent, 999) DESC, hops ASC
 OWNERSHIP_CHAIN = """
 // Full control path between two named entities, in either direction.
 MATCH path = (a:Entity {canonical_id: $from_id})-[:CONTROLS*1..8]->(b:Entity {canonical_id: $to_id})
+WHERE all(r IN relationships(path) WHERE r.is_active)
 RETURN [n IN nodes(path) | {id: n.canonical_id, name: n.name,
                             type: n.entity_type, jurisdiction: n.jurisdiction}] AS chain,
        [r IN relationships(path) | {min: r.min_percent, max: r.max_percent,
@@ -85,6 +87,7 @@ CIRCULAR_OWNERSHIP = """
 // technique in others — either way, these break naive upward traversal, so
 // finding them is a prerequisite for trusting any UBO result.
 MATCH path = (e:Entity)-[:CONTROLS*2..6]->(e)
+WHERE all(r IN relationships(path) WHERE r.is_active)
 WITH e, path, length(path) AS cycle_length
 RETURN e.canonical_id AS entity_id,
        e.name         AS entity_name,
@@ -107,6 +110,7 @@ SANCTIONS_EXPOSURE = """
 // target company's own filing.
 MATCH path = (risk:Entity)-[:CONTROLS*1..{max_hops}]->(company:Company)
 WHERE risk.is_sanctioned = true
+  AND all(r IN relationships(path) WHERE r.is_active)
 WITH company, risk, path, length(path) AS hops,
      reduce(hi = 1.0, r IN relationships(path) |
             hi * coalesce(r.max_percent, 100.0) / 100.0) AS max_share,
@@ -128,6 +132,7 @@ SANCTIONED_PATH_TO_COMPANY = """
 // evidence an analyst needs before acting on a hit.
 MATCH path = (risk:Entity {canonical_id: $risk_id})-[:CONTROLS*1..6]->
              (company:Company {reg_number: $reg_number})
+WHERE all(r IN relationships(path) WHERE r.is_active)
 RETURN [n IN nodes(path) | {name: n.name, type: n.entity_type,
                             jurisdiction: n.jurisdiction,
                             sanctioned: n.is_sanctioned}] AS chain,
@@ -145,7 +150,8 @@ OPAQUE_STRUCTURES = """
 // person from open data. Not evidence of wrongdoing — evidence that open data
 // runs out, which is the measurable quantity that matters for coverage.
 MATCH path = (top:Entity)-[:CONTROLS*1..6]->(company:Company)
-WHERE NOT EXISTS { MATCH (:Entity)-[:CONTROLS]->(top) }
+WHERE all(r IN relationships(path) WHERE r.is_active)
+  AND NOT EXISTS { MATCH (:Entity)-[c:CONTROLS]->(top) WHERE c.is_active }
   AND (top.jurisdiction IN $secrecy_jurisdictions
        OR any(r IN relationships(path) WHERE r.via_fiduciary))
   AND top.entity_type <> 'Person'
@@ -165,7 +171,8 @@ HUB_ENTITIES = """
 // genuine holding groups, nominee directors, and — where resolution has gone
 // wrong — over-merged clusters. Reviewing the top of this list is the cheapest
 // available check on cluster quality at full scale, where no labels exist.
-MATCH (e:Entity)-[:CONTROLS]->(c:Company)
+MATCH (e:Entity)-[ctl:CONTROLS]->(c:Company)
+WHERE ctl.is_active
 WITH e, count(DISTINCT c) AS controlled
 WHERE controlled >= $min_controlled
 RETURN e.canonical_id AS entity_id,
@@ -182,7 +189,8 @@ CROSS_BORDER_CHAINS = """
 // terminal jurisdiction. The distribution is the headline coverage finding:
 // where does control over UK companies actually terminate?
 MATCH path = (top:Entity)-[:CONTROLS*1..6]->(company:Company)
-WHERE NOT EXISTS { MATCH (:Entity)-[:CONTROLS]->(top) }
+WHERE all(r IN relationships(path) WHERE r.is_active)
+  AND NOT EXISTS { MATCH (:Entity)-[c:CONTROLS]->(top) WHERE c.is_active }
   AND top.jurisdiction <> '' AND top.jurisdiction <> 'GB'
 RETURN top.jurisdiction AS terminal_jurisdiction,
        count(DISTINCT company) AS companies_controlled,

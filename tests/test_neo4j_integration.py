@@ -125,6 +125,14 @@ class TestParityWithSql:
         The whole reason the analyses exist twice — recursive SQL for
         reproducibility, Cypher for interactive use — is that either could be
         wrong on its own. This is the check that catches it.
+
+        It has already earned its keep: the Cypher side originally walked every
+        CONTROLS edge, while the SQL closure filters on ``ceased_on IS NULL``.
+        Ceased relationships are loaded deliberately, carrying ``is_active`` so
+        a historical view stays possible — but a traversal that ignores the flag
+        treats control that ended years ago as current, and reached 11 companies
+        nobody presently controls. Both sides now agree that control means
+        active control.
         """
         from ownership_er import analysis
         from ownership_er.warehouse import connect
@@ -143,7 +151,8 @@ class TestParityWithSql:
                 r["id"]
                 for r in session.run(
                     """
-                    MATCH (a:Entity)-[:CONTROLS*2..6]->(b:Entity)
+                    MATCH path = (a:Entity)-[:CONTROLS*2..6]->(b:Entity)
+                    WHERE all(r IN relationships(path) WHERE r.is_active)
                     RETURN DISTINCT b.canonical_id AS id
                     """
                 )
