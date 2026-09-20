@@ -183,3 +183,49 @@ def test_sanctions_endpoint_agrees_with_the_ownership_walk(client) -> None:
             for h in client.get(f"/api/entity/{entity_id}/sanctions").json()["hits"]
         }
         assert walked == precomputed, f"closure and traversal disagree for {entity_id}"
+
+
+# ---------------------------------------------------------------- overview
+
+
+def test_overview_totals_are_internally_consistent(client) -> None:
+    """The dashboard's headline arithmetic has to hold, or it is lying."""
+    d = client.get("/api/overview").json()
+    t, s = d["totals"], d["sanctions"]
+    assert t["companies"] + t["people"] == t["entities"]
+    assert t["source_records"] - t["entities"] == t["records_absorbed"]
+    assert t["records_absorbed"] >= 0
+    assert t["active_edges"] <= t["edges"]
+    assert s["companies_exposed"] == sum(r["companies"] for r in s["by_hops"])
+
+
+def test_overview_indirect_count_matches_the_listing(client) -> None:
+    """The hero figure and the table under it must be the same set."""
+    d = client.get("/api/overview").json()
+    assert d["sanctions"]["indirect_only_companies"] == len(d["indirect_companies"])
+    assert all(c["hops"] >= 2 for c in d["indirect_companies"])
+
+
+def test_overview_indirect_companies_are_not_themselves_sanctioned(client) -> None:
+    """The claim is 'clean filings, sanctioned upstream'. Check the first half."""
+    d = client.get("/api/overview").json()
+    for c in d["indirect_companies"][:10]:
+        ent = client.get(f"/api/entity/{c['id']}").json()
+        assert ent["is_sanctioned"] is False
+
+
+def test_overview_agrees_with_the_exposed_endpoint(client) -> None:
+    listed = client.get("/api/sanctions/exposed", params={"min_hops": 2, "limit": 500}).json()
+    overview = client.get("/api/overview").json()
+    assert {r["id"] for r in listed["results"]} == {
+        c["id"] for c in overview["indirect_companies"]
+    }
+
+
+def test_overview_control_only_links_report_no_percentage(client) -> None:
+    d = client.get("/api/overview").json()
+    for c in d["indirect_companies"]:
+        if c["control_only"]:
+            assert c["min_percent"] is None and c["max_percent"] is None
+        else:
+            assert c["min_percent"] is not None and c["min_percent"] <= c["max_percent"]

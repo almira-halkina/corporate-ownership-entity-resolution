@@ -6,227 +6,543 @@
 <title>Beneficial Ownership &amp; Sanctions Exposure</title>
 <style>
   :root{
-    --bg:#fbfaf8; --panel:#fff; --ink:#1a1a1a; --muted:#6b6b6b; --line:#e4e1dc;
-    --accent:#1c4f8a; --flag:#a4212b; --flag-bg:#fdf1f1; --ok:#2c6e49; --chip:#f2efea;
     color-scheme: light;
+    --page:#f9f9f7; --surface:#fcfcfb; --ink:#0b0b0b; --ink-2:#52514e; --muted:#898781;
+    --grid:#e1e0d9; --axis:#c3c2b7; --border:rgba(11,11,11,0.10);
+    --series-1:#2a78d6; --context:#898781;
+    --critical:#d03b3b; --critical-bg:#fdf2f2; --good:#006300;
+    --chip:#f0efec;
   }
-  @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-    --bg:#16181c; --panel:#1e2126; --ink:#e9e7e3; --muted:#9a9a9a; --line:#31353b;
-    --accent:#7fb0e8; --flag:#e88b92; --flag-bg:#2b1e20; --ok:#7fc0a0; --chip:#272b31;
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
     color-scheme: dark;
+    --page:#0d0d0d; --surface:#1a1a19; --ink:#fff; --ink-2:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,0.10);
+    --series-1:#3987e5; --context:#898781;
+    --critical:#e66767; --critical-bg:#2b1e20; --good:#0ca30c;
+    --chip:#272b31;
   }}
   :root[data-theme="dark"]{
-    --bg:#16181c; --panel:#1e2126; --ink:#e9e7e3; --muted:#9a9a9a; --line:#31353b;
-    --accent:#7fb0e8; --flag:#e88b92; --flag-bg:#2b1e20; --ok:#7fc0a0; --chip:#272b31;
     color-scheme: dark;
+    --page:#0d0d0d; --surface:#1a1a19; --ink:#fff; --ink-2:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,0.10);
+    --series-1:#3987e5; --context:#898781;
+    --critical:#e66767; --critical-bg:#2b1e20; --good:#0ca30c;
+    --chip:#272b31;
   }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--ink);
-    font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-  .wrap{max-width:1000px;margin:0 auto;padding:28px 16px 64px}
-  header h1{font-size:1.35rem;margin:0 0 4px;letter-spacing:-.01em}
-  header p{margin:0 0 20px;color:var(--muted);max-width:66ch}
-  .searchbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
-  input[type=search]{flex:1 1 280px;min-width:0;padding:11px 13px;font-size:15px;
-    border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink)}
-  input[type=search]:focus{outline:2px solid var(--accent);outline-offset:-1px}
-  button{padding:11px 18px;font-size:15px;border:1px solid var(--accent);border-radius:8px;
-    background:var(--accent);color:#fff;cursor:pointer}
-  button.ghost{background:transparent;color:var(--accent)}
-  button:disabled{opacity:.55;cursor:default}
-  .examples{color:var(--muted);font-size:13px;margin-bottom:22px}
-  .examples a{color:var(--accent);cursor:pointer;text-decoration:underline;margin-right:10px}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;
-    padding:14px 16px;margin-bottom:10px}
-  .card h3{margin:0 0 3px;font-size:1rem}
-  .row{display:flex;justify-content:space-between;gap:12px;align-items:baseline;flex-wrap:wrap}
-  .meta{color:var(--muted);font-size:13px}
-  .chip{display:inline-block;padding:2px 8px;border-radius:999px;background:var(--chip);
-    font-size:12px;margin:2px 4px 2px 0}
-  .chip.flag{background:var(--flag-bg);color:var(--flag);font-weight:600}
-  .chip.ok{color:var(--ok)}
-  .flagbox{border-left:3px solid var(--flag);background:var(--flag-bg);padding:11px 14px;
-    border-radius:0 8px 8px 0;margin:10px 0}
-  .okbox{border-left:3px solid var(--ok);padding:11px 14px;margin:10px 0}
+  body{margin:0;background:var(--page);color:var(--ink);
+    font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+  .wrap{max-width:1040px;margin:0 auto;padding:26px 16px 72px}
+  h1{font-size:1.3rem;margin:0 0 3px;letter-spacing:-.01em}
+  .sub{color:var(--ink-2);margin:0 0 18px;max-width:70ch}
+  h2{font-size:1.05rem;margin:26px 0 10px}
+  h3{font-size:.95rem;margin:0 0 2px}
+  p{max-width:72ch}
+
+  nav{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:20px;flex-wrap:wrap}
+  nav button{appearance:none;background:none;border:0;border-bottom:2px solid transparent;
+    padding:9px 14px;font:inherit;color:var(--ink-2);cursor:pointer;margin-bottom:-1px}
+  nav button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--series-1);font-weight:600}
+  nav button:focus-visible{outline:2px solid var(--series-1);outline-offset:-2px}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:15px 17px;margin-bottom:12px}
+  .hero{display:flex;gap:18px;align-items:baseline;flex-wrap:wrap}
+  .hero .fig{font-size:56px;line-height:1;font-weight:700;color:var(--critical)}
+  .hero .lede{flex:1 1 320px;min-width:0;color:var(--ink-2)}
+  .hero .lede strong{color:var(--ink)}
+
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px}
+  .kpi{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+  .kpi .v{font-size:26px;font-weight:650;line-height:1.15}
+  .kpi .l{color:var(--ink-2);font-size:12.5px;margin-top:2px}
+
+  .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:12px}
+  figure{margin:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:15px 17px}
+  figcaption{color:var(--ink-2);font-size:12.5px;margin-top:9px}
+  .axlab{fill:var(--muted);font-size:11px}
+  .vallab{fill:var(--ink-2);font-size:11.5px;font-weight:600}
+  .gridline{stroke:var(--grid);stroke-width:1}
+  .baseline{stroke:var(--axis);stroke-width:1}
+  .bar{transition:opacity .12s}
+  .bar:hover{opacity:.82}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--border);vertical-align:top}
+  th{font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:600}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  .scroll{overflow-x:auto}
+
+  .chip{display:inline-block;padding:2px 8px;border-radius:999px;background:var(--chip);font-size:12px;margin:2px 4px 2px 0}
+  .chip.flag{background:var(--critical-bg);color:var(--critical);font-weight:600}
+  .flagbox{border-left:3px solid var(--critical);background:var(--critical-bg);padding:11px 14px;border-radius:0 8px 8px 0;margin:10px 0}
+  .okbox{border-left:3px solid var(--good);padding:11px 14px;margin:10px 0}
+  .clickable{cursor:pointer;color:var(--series-1);text-decoration:underline}
   .chain{list-style:none;padding:0;margin:8px 0 0}
-  .chain li{padding:5px 0 5px 20px;position:relative}
+  .chain li{padding:4px 0 4px 20px;position:relative}
   .chain li::before{content:"↳";position:absolute;left:2px;color:var(--muted)}
   .chain li:first-child::before{content:"•"}
-  table{width:100%;border-collapse:collapse;font-size:14px}
-  th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
-  th{font-weight:600;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
-  .scroll{overflow-x:auto}
-  .clickable{cursor:pointer;color:var(--accent);text-decoration:underline}
-  .status{color:var(--muted);font-size:13px;min-height:20px;margin:10px 0}
-  footer{margin-top:34px;padding-top:14px;border-top:1px solid var(--line);
-    color:var(--muted);font-size:12.5px}
-  footer code{background:var(--chip);padding:1px 5px;border-radius:4px}
+
+  .searchbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+  input[type=search]{flex:1 1 280px;min-width:0;padding:11px 13px;font-size:15px;
+    border:1px solid var(--axis);border-radius:8px;background:var(--surface);color:var(--ink)}
+  input[type=search]:focus{outline:2px solid var(--series-1);outline-offset:-1px}
+  button.go{padding:11px 18px;font-size:15px;border:1px solid var(--series-1);border-radius:8px;
+    background:var(--series-1);color:#fff;cursor:pointer}
+  .examples{color:var(--ink-2);font-size:13px;margin-bottom:18px}
+  .examples a{color:var(--series-1);cursor:pointer;text-decoration:underline;margin-right:10px}
+  .status{color:var(--ink-2);font-size:13px;min-height:20px;margin:10px 0}
+
+  details{border-top:1px solid var(--border);padding:10px 0}
+  summary{cursor:pointer;font-weight:600}
+  dl{margin:0} dt{font-weight:600;margin-top:10px} dd{margin:2px 0 0;color:var(--ink-2)}
+  code{background:var(--chip);padding:1px 5px;border-radius:4px;font-size:12.5px}
+  footer{margin-top:30px;padding-top:13px;border-top:1px solid var(--border);color:var(--ink-2);font-size:12.5px}
+  a{color:var(--series-1)}
   [hidden]{display:none!important}
+  .tip{position:fixed;pointer-events:none;background:var(--ink);color:var(--page);
+    padding:5px 9px;border-radius:6px;font-size:12.5px;opacity:0;transition:opacity .1s;z-index:9}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <h1>Beneficial ownership &amp; sanctions exposure</h1>
-    <p>Search a company or person, then follow control upward. The interesting
-       result is a company whose own filings name nobody sanctioned, but which
-       is controlled through a chain by somebody who is.</p>
-  </header>
+  <h1>Beneficial ownership &amp; sanctions exposure</h1>
+  <p class="sub">Who ultimately controls a company — and whether anyone in that
+     chain is under sanctions, even when they never appear on the company's own filing.</p>
 
-  <div class="searchbar">
-    <input type="search" id="q" placeholder="Company or person name…" autocomplete="off">
-    <button id="go">Search</button>
-  </div>
-  <div class="examples" id="examples"></div>
+  <nav role="tablist">
+    <button role="tab" id="tab-overview" aria-selected="true">Overview</button>
+    <button role="tab" id="tab-search" aria-selected="false">Search</button>
+    <button role="tab" id="tab-about" aria-selected="false">About &amp; method</button>
+  </nav>
 
-  <div class="status" id="status"></div>
-  <div id="results"></div>
-  <div id="detail"></div>
+  <!-- ─────────────────────────────── OVERVIEW ─────────────────────────────── -->
+  <section id="panel-overview">
+    <div class="card hero">
+      <div class="fig" id="heroFig">—</div>
+      <div class="lede" id="heroLede">Loading…</div>
+    </div>
+    <div class="kpis" id="kpis"></div>
+    <div class="charts" id="charts"></div>
+    <h2>Companies exposed only through a chain</h2>
+    <p class="sub">Every company here has clean filings of its own. The sanctioned
+       party is upstream, and only becomes visible once records from different
+       sources are resolved to the same person.</p>
+    <div class="card scroll"><table id="indirectTable"></table></div>
+  </section>
+
+  <!-- ──────────────────────────────── SEARCH ──────────────────────────────── -->
+  <section id="panel-search" hidden>
+    <div class="searchbar">
+      <input type="search" id="q" placeholder="Company or person name…" autocomplete="off">
+      <button class="go" id="go">Search</button>
+    </div>
+    <div class="examples" id="examples"></div>
+    <div class="status" id="status"></div>
+    <div id="results"></div>
+    <div id="detail"></div>
+  </section>
+
+  <!-- ──────────────────────────────── ABOUT ───────────────────────────────── -->
+  <section id="panel-about" hidden>
+    <div class="card">
+      <h2 style="margin-top:0">What this is, in plain language</h2>
+      <p>Companies have to declare who owns and controls them. Governments publish
+         lists of people and companies under sanctions. In principle, checking
+         whether a company is controlled by a sanctioned person should be a lookup.</p>
+      <p>In practice it is not, for one reason: <strong>the same person appears in
+         different records under different spellings</strong> — "Dr Amara Piotr
+         MacGregor" on one filing, "Amara MacGregor" on another, a transliterated
+         version on a sanctions list. Nothing links them. And control is rarely
+         direct: a sanctioned person owns a holding company, which owns another
+         company, which owns the one you are looking at. Each filing on its own
+         looks clean.</p>
+      <p>This tool does two things. It <strong>works out which records describe the
+         same real person or company</strong>, and then it <strong>follows ownership
+         upward through as many layers as it takes</strong> — so a link that is
+         invisible in any single document becomes visible.</p>
+
+      <h3 style="margin-top:22px">How to use it</h3>
+      <dl>
+        <dt>1. Search a name</dt>
+        <dd>Type a company or person. Any known spelling works — the search looks
+            at every variant a record used, not just the most common one. Results
+            show a red flag if a sanctions link exists.</dd>
+        <dt>2. Open a result</dt>
+        <dd>You get the alias set (every spelling that resolved to this entity),
+            who controls it, and how far up the chain any sanctioned party sits.</dd>
+        <dt>3. Read the ownership interval</dt>
+        <dd>Percentages appear as a range, like <code>37.5–75%</code>, never a
+            single number. Registries publish ownership in bands, so a two-step
+            chain can only ever produce a range. Where a step grants control
+            without a percentage — the right to appoint directors, for instance —
+            you will see <em>"control, no %"</em> rather than a made-up figure.</dd>
+        <dt>4. Follow the chain</dt>
+        <dd>Each party in the path is clickable, so you can walk the structure
+            yourself rather than trusting a single answer.</dd>
+      </dl>
+
+      <h3 style="margin-top:22px">What it is good for</h3>
+      <p>Sanctions and third-party screening, where the question is not "is this
+         company listed" but "is anyone who controls it listed". Investigative
+         research into opaque structures. Due diligence where a counterparty's
+         ownership runs through several jurisdictions. And as a worked example of
+         entity resolution — the demo corpus is synthetic, but the pipeline runs
+         against the real UK Companies House and OpenSanctions publications.</p>
+
+      <div class="flagbox"><strong>Read this before believing a result.</strong>
+        The public demo runs on a <strong>synthetic corpus</strong> built to look
+        like the real registers. Names, companies and sanctions in it are invented.
+        A hit here is a demonstration of the method, never a finding about a real
+        person or company — and even on real data, an ownership link is a lead to
+        verify against source filings, not a compliance decision.</div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0">Method</h2>
+      <p class="sub">The pipeline is <code>acquire → normalize → block → match →
+        cluster → load</code>, run offline; the service reads a flattened index
+        built from its output.</p>
+
+      <details open><summary>Resolving records to entities</summary>
+        <p>Comparing every record against every other is quadratic and impossible
+           at register scale, so candidates are generated by <strong>blocking</strong>:
+           11 keys, unioned, each catching matches the others miss — phonetic name
+           keys, sorted-token keys, name-plus-birth-year, registration number,
+           address. Blocking sets the ceiling on what can ever be found, so it is
+           measured in its own right rather than assumed.</p>
+        <p>Candidate pairs are then scored. Three matchers sit behind one interface:
+           an interpretable additive log-odds model (the default, which reports a
+           per-feature breakdown for every decision), a Fellegi–Sunter probabilistic
+           model, and an LLM adjudicator. <strong>The LLM only ever sees the ~5% of
+           pairs that fall between the accept and reject thresholds</strong>, which
+           bounds both its cost and its blast radius, and makes its contribution
+           measurable on its own.</p>
+        <p>Accepted pairs become connected components, which are then re-split where
+           a component contains mutually exclusive attributes — two different
+           birth years, three nationalities. Dual citizenship is tolerated; a third
+           nationality is treated as evidence the cluster is wrong.</p>
+      </details>
+
+      <details><summary>Two decisions that change the answer</summary>
+        <p><strong>Missing is not the same as different.</strong> When a record
+           omits a field, that feature is scored as <code>NULL</code>, never as
+           zero. "Both records state a nationality and they differ" is strong
+           evidence against a match; "one record omits nationality" is no evidence
+           at all. Collapsing the two teaches the model that missing implies
+           non-match — and missingness is not random, so the resulting bias lands
+           precisely on the cross-border records the pipeline exists to resolve.</p>
+        <p><strong>Ownership is an interval, not a number.</strong> Registries
+           publish bands. Multiplying midpoints down a chain yields a confident
+           figure the source does not support, so the bounds are multiplied
+           instead: 25–50% through 50–75% gives 12.5–37.5%. Where a step asserts
+           control without a percentage, the arithmetic is abandoned and the path
+           is flagged rather than guessed.</p>
+      </details>
+
+      <details><summary>Following control</summary>
+        <p>Traversal is bounded at six hops, and a path never revisits an entity.
+           Both are necessary: corporate ownership graphs contain genuine cycles,
+           some of them structures built deliberately to frustrate tracing, and an
+           unbounded walk does not terminate usefully.</p>
+        <p>The downward closure from every sanctioned entity is computed once when
+           the index is built, not per request, because it is the only query whose
+           cost grows with graph depth rather than with the size of the answer. A
+           test asserts that this precomputed answer matches a live traversal — if
+           they ever disagree, the optimisation is a bug.</p>
+      </details>
+
+      <details><summary>Accuracy, measured</summary>
+        <p>Scored against a labelled ground truth on the fixture corpus:
+           <strong>B-cubed F1 0.989</strong> (precision 0.995, recall 0.984),
+           pairwise precision 0.980 and recall 0.921, and blocking reduction ratio
+           0.9993. Recall within candidate pairs is 1.000 — every true match that
+           survived blocking was found, which locates the remaining loss squarely
+           in blocking rather than in matching.</p>
+      </details>
+
+      <details><summary>Limits — what this cannot tell you</summary>
+        <ul>
+          <li>Roughly 5% of the real PSC register consists of statements rather
+              than identified people ("no person has significant control"). Those
+              are counted, never parsed into entities — an absence of owners in
+              the data is not an absence of owners.</li>
+          <li>Where a chain terminates in a secrecy jurisdiction or a fiduciary
+              layer, open data simply runs out. The tool marks this instead of
+              presenting the last visible party as the ultimate owner.</li>
+          <li>Resolution is probabilistic. At 0.995 precision a small number of
+              clusters are wrong, and a wrong merge creates an ownership link that
+              does not exist.</li>
+          <li>Sanctions lists change constantly; this index is a snapshot, stamped
+              with its build time below.</li>
+        </ul>
+      </details>
+
+      <details><summary>How it is served</summary>
+        <p>The pipeline is batch and cannot run in a request path, so an offline
+           step flattens the warehouse into a read-only index — entities with risk
+           flags resolved, control edges re-pointed onto canonical ids, a
+           denormalised name index, and the precomputed sanctions closure. The API
+           reads that and nothing else; no matcher or clusterer is reachable from a
+           request. The index ships inside the container image, so the whole
+           service runs with no external database.</p>
+        <p>Measured on two shared vCPUs: p50 7.8 ms and p99 11.4 ms at one client,
+           saturating near 225 requests per second, zero errors, ~0.7 s cold start.
+           A load test runs in CI on every push and the build fails on a single
+           error under load.</p>
+      </details>
+    </div>
+  </section>
 
   <footer>
     <span id="idxmeta"></span><br>
-    API: <code>/api/search</code> · <code>/api/entity/{id}/ownership</code> ·
-    <code>/api/entity/{id}/sanctions</code> · <code>/health</code> · <code>/metrics</code>
-    · <a href="/docs" style="color:var(--accent)">OpenAPI docs</a>
+    <a href="/docs">OpenAPI docs</a> ·
+    <code>/api/search</code> · <code>/api/overview</code> ·
+    <code>/api/entity/{id}/sanctions</code> · <code>/health</code> · <code>/metrics</code> ·
+    <a href="https://github.com/almira-halkina/corporate-ownership-entity-resolution">Source</a>
   </footer>
 </div>
+<div class="tip" id="tip"></div>
 
 <script>
 const $ = s => document.querySelector(s);
-const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
-  ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const esc = s => String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt = n => Number(n).toLocaleString("en-US");
 
-async function api(path){
-  const t0 = performance.now();
-  const r = await fetch(path);
-  const ms = (performance.now() - t0).toFixed(0);
+async function api(p){
+  const r = await fetch(p);
   if(!r.ok) throw new Error((await r.json().catch(()=>({detail:r.statusText}))).detail);
-  const data = await r.json();
-  data.__client_ms = ms;
-  return data;
+  return r.json();
 }
 
+/* ── tabs ──────────────────────────────────────────────────────────────── */
+const TABS = ["overview","search","about"];
+function show(name){
+  TABS.forEach(t=>{
+    $("#tab-"+t).setAttribute("aria-selected", String(t===name));
+    $("#panel-"+t).hidden = t!==name;
+  });
+  history.replaceState(null,"","#"+name);
+}
+TABS.forEach(t => $("#tab-"+t).onclick = () => show(t));
+if(TABS.includes(location.hash.slice(1))) show(location.hash.slice(1));
+
+/* ── tooltip ───────────────────────────────────────────────────────────── */
+const tip = $("#tip");
+function bindTip(el, text){
+  el.addEventListener("mousemove", e => {
+    tip.textContent = text;
+    tip.style.opacity = 1;
+    tip.style.left = Math.min(e.clientX + 12, innerWidth - 220) + "px";
+    tip.style.top  = (e.clientY - 34) + "px";
+  });
+  el.addEventListener("mouseleave", () => tip.style.opacity = 0);
+}
+
+/* ── charts: hand-rolled SVG, one hue plus gray, direct labels ─────────── */
+function barsV(data, {emphasis=()=>true, unit="", height=168} = {}){
+  const W=340, H=height, padL=8, padR=8, padB=30, padT=14;
+  const n=data.length, max=Math.max(...data.map(d=>d.v),1);
+  const bw=Math.min(54,Math.max(6,(W-padL-padR)/n - 10)), gap=(W-padL-padR)/n;
+  const y = v => padT + (H-padT-padB) * (1 - v/max);
+  let svg=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img">`;
+  svg+=`<line class="baseline" x1="${padL}" y1="${H-padB}" x2="${W-padR}" y2="${H-padB}"/>`;
+  data.forEach((d,i)=>{
+    const cx=padL+gap*i+gap/2, x=cx-bw/2, yy=y(d.v), h=(H-padB)-yy;
+    const fill = emphasis(d) ? "var(--series-1)" : "var(--context)";
+    svg+=`<rect class="bar" data-tip="${esc(d.label)}: ${fmt(d.v)}${unit}" x="${x}" y="${yy}" width="${bw}" height="${Math.max(h,2)}" rx="4" fill="${fill}"/>`;
+    svg+=`<text class="vallab" x="${cx}" y="${yy-5}" text-anchor="middle">${fmt(d.v)}</text>`;
+    svg+=`<text class="axlab" x="${cx}" y="${H-padB+15}" text-anchor="middle">${esc(d.label)}</text>`;
+    if(d.sub) svg+=`<text class="axlab" x="${cx}" y="${H-padB+27}" text-anchor="middle">${esc(d.sub)}</text>`;
+  });
+  return svg+`</svg>`;
+}
+
+function barsH(data, {unit=""} = {}){
+  const rowH=26, W=340, padR=44, labelW=150, H=data.length*rowH+8;
+  const max=Math.max(...data.map(d=>d.v),1);
+  let svg=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img">`;
+  data.forEach((d,i)=>{
+    const y=i*rowH+4, bw=Math.max(((W-labelW-padR)*d.v)/max,2);
+    svg+=`<text class="axlab" x="0" y="${y+13}" >${esc(d.label.length>22?d.label.slice(0,21)+"…":d.label)}</text>`;
+    svg+=`<rect class="bar" data-tip="${esc(d.label)}: ${fmt(d.v)}${unit}" x="${labelW}" y="${y+3}" width="${bw}" height="13" rx="4" fill="var(--series-1)"/>`;
+    svg+=`<text class="vallab" x="${labelW+bw+6}" y="${y+14}">${fmt(d.v)}</text>`;
+  });
+  return svg+`</svg>`;
+}
+
+function figure(title, svg, caption){
+  return `<figure><h3>${esc(title)}</h3>${svg}<figcaption>${caption}</figcaption></figure>`;
+}
+
+/* ── overview ──────────────────────────────────────────────────────────── */
+async function loadOverview(){
+  let d;
+  try { d = await api("/api/overview"); }
+  catch(e){ $("#heroLede").textContent = "Could not load: " + e.message; return; }
+  const t=d.totals, s=d.sanctions;
+
+  $("#heroFig").textContent = s.indirect_only_companies;
+  $("#heroLede").innerHTML =
+    `<strong>companies are controlled by a sanctioned party that never appears on
+     their own filing.</strong> Each one looks clean in isolation. The link exists
+     only after records from separate sources are resolved to the same person and
+     ownership is followed upward — which is the entire point of the pipeline.
+     Out of ${fmt(s.companies_exposed)} companies with any sanctions exposure,
+     across ${fmt(t.companies)} companies in the corpus.`;
+
+  $("#kpis").innerHTML = [
+    [fmt(t.entities), `canonical entities, resolved from ${fmt(t.source_records)} source records`],
+    [fmt(t.records_absorbed), "duplicate records absorbed by merging"],
+    [fmt(t.cross_source_entities), "entities appearing in more than one source"],
+    [fmt(t.edges), `control relationships (${fmt(t.active_edges)} active)`],
+    [fmt(t.sanctioned_entities), "entities carrying a sanctions topic"],
+    [fmt(s.companies_exposed), "companies under sanctioned control"],
+  ].map(([v,l])=>`<div class="kpi"><div class="v">${v}</div><div class="l">${esc(l)}</div></div>`).join("");
+
+  const hops = s.by_hops.map(h=>({
+    label: h.hops + (h.hops===1?" hop":" hops"),
+    sub: h.hops===1 ? "on the filing" : "chain only",
+    v: h.companies, hops: h.hops }));
+
+  const merge = d.merge_distribution.map(m=>({label:String(m.filings), v:m.entities}));
+
+  $("#charts").innerHTML =
+    figure("Sanctioned control by chain length",
+      barsV(hops,{emphasis:d0=>d0.hops>1}),
+      `Highlighted bars are the companies a single-document check misses: the
+       sanctioned party sits ${s.by_hops.length>2?"two or three":"two"} steps up.
+       ${fmt(s.links_quantified)} of ${fmt(s.links_quantified+s.links_control_only)}
+       links carry a quantified ownership interval; the rest assert control without
+       a percentage and are reported as such.`) +
+    figure("Sanctioned parties controlling the most companies",
+      barsH(d.top_controllers.map(c=>({label:c.name, v:c.companies}))),
+      `Counting each company once, through chains of any length. A single resolved
+       person can sit above many companies without appearing on any of their filings.`) +
+    figure("How many filings each resolved entity came from",
+      barsV(merge,{}),
+      `${fmt(t.merged_entities)} entities were assembled from more than one filing;
+       the remaining ${fmt(t.entities-t.merged_entities)} appeared exactly once.
+       The tail on the right is where resolution earns its keep — one entity here
+       was built from 12 separate records.`);
+
+  document.querySelectorAll("[data-tip]").forEach(el=>bindTip(el, el.dataset.tip));
+
+  $("#indirectTable").innerHTML =
+    `<thead><tr><th>Company</th><th class="num">Hops</th><th>Sanctioned party upstream</th>
+     <th>Ownership</th></tr></thead><tbody>` +
+    d.indirect_companies.map(c=>`<tr>
+      <td><span class="clickable" data-goto="${esc(c.id)}">${esc(c.name)}</span>
+          ${c.reg_number?`<div class="l" style="color:var(--muted);font-size:12px">${esc(c.reg_number)}</div>`:""}</td>
+      <td class="num">${c.hops}</td>
+      <td>${esc(c.owner)} <span class="chip flag">sanctioned</span></td>
+      <td>${c.control_only ? "control, no %" :
+            (c.min_percent===c.max_percent ? c.min_percent+"%" : c.min_percent+"–"+c.max_percent+"%")}</td>
+    </tr>`).join("") + `</tbody>`;
+  document.querySelectorAll("[data-goto]").forEach(el=>
+    el.onclick = () => { show("search"); showEntity(el.dataset.goto); });
+
+  const m=d.index;
+  $("#idxmeta").textContent =
+    `Index: ${fmt(m.entities)} entities · ${fmt(m.edges)} control edges · `
+    + `${fmt(m.sanctioned_entities)} sanctioned · built ${m.built_at} in ${m.build_seconds}s · `
+    + `synthetic demo corpus`;
+}
+
+/* ── search ────────────────────────────────────────────────────────────── */
 function pct(n){
   if(n.control_only) return "control, no %";
-  if(n.min_percent == null) return "—";
-  const lo = n.min_percent, hi = n.max_percent;
-  return (lo === hi) ? lo + "%" : lo + "–" + hi + "%";
+  if(n.min_percent==null) return "—";
+  return n.min_percent===n.max_percent ? n.min_percent+"%" : n.min_percent+"–"+n.max_percent+"%";
 }
-
-function entityChips(e){
-  let out = "";
-  if(e.is_sanctioned) out += '<span class="chip flag">sanctioned</span>';
-  if(e.is_pep) out += '<span class="chip">PEP</span>';
-  if(e.jurisdiction) out += '<span class="chip">'+esc(e.jurisdiction)+'</span>';
-  if(e.reg_number) out += '<span class="chip">'+esc(e.reg_number)+'</span>';
-  return out;
+function chips(e){
+  let o="";
+  if(e.is_sanctioned) o+='<span class="chip flag">sanctioned</span>';
+  if(e.is_pep) o+='<span class="chip">PEP</span>';
+  if(e.jurisdiction) o+='<span class="chip">'+esc(e.jurisdiction)+'</span>';
+  if(e.reg_number) o+='<span class="chip">'+esc(e.reg_number)+'</span>';
+  return o;
 }
 
 async function search(q){
-  $("#detail").innerHTML = "";
-  $("#status").textContent = "Searching…";
+  $("#detail").innerHTML=""; $("#status").textContent="Searching…";
   try{
-    const d = await api("/api/search?q=" + encodeURIComponent(q) + "&limit=25");
-    $("#status").textContent = d.count + " result" + (d.count===1?"":"s")
-      + " · server " + d.took_ms + " ms · round trip " + d.__client_ms + " ms";
-    if(!d.count){ $("#results").innerHTML = '<div class="card">No entity matched that name.</div>'; return; }
-    $("#results").innerHTML = d.results.map(e => `
+    const d = await api("/api/search?q="+encodeURIComponent(q)+"&limit=25");
+    $("#status").textContent = `${d.count} result${d.count===1?"":"s"} · ${d.took_ms} ms`;
+    $("#results").innerHTML = d.count ? d.results.map(e=>`
       <div class="card">
-        <div class="row">
+        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
           <h3><span class="clickable" data-id="${esc(e.id)}">${esc(e.name)}</span></h3>
-          <span class="meta">${esc(e.type)} · ${e.n_records} source record${e.n_records===1?"":"s"}</span>
+          <span style="color:var(--ink-2);font-size:13px">${esc(e.type)} · ${e.n_records} source record${e.n_records===1?"":"s"}</span>
         </div>
-        <div>${entityChips(e)}${e.sanctions_exposure_links
-          ? '<span class="chip flag">'+e.sanctions_exposure_links+' sanctions link'
-            +(e.sanctions_exposure_links===1?"":"s")+'</span>' : ''}</div>
-        ${e.match.matched_on !== e.name
-          ? '<div class="meta">matched on alias: '+esc(e.match.matched_on)+'</div>' : ''}
-      </div>`).join("");
-    document.querySelectorAll("[data-id]").forEach(el =>
-      el.onclick = () => showEntity(el.dataset.id));
-  }catch(err){ $("#status").textContent = "Error: " + err.message; }
+        <div>${chips(e)}${e.sanctions_exposure_links?`<span class="chip flag">${e.sanctions_exposure_links} sanctions link${e.sanctions_exposure_links===1?"":"s"}</span>`:""}</div>
+        ${e.match.matched_on!==e.name?`<div style="color:var(--ink-2);font-size:13px">matched on alias: ${esc(e.match.matched_on)}</div>`:""}
+      </div>`).join("") : '<div class="card">No entity matched that name.</div>';
+    document.querySelectorAll("#results [data-id]").forEach(el=>el.onclick=()=>showEntity(el.dataset.id));
+  }catch(e){ $("#status").textContent="Error: "+e.message; }
 }
 
 async function showEntity(id){
-  $("#status").textContent = "Loading entity…";
+  show("search");
+  $("#status").textContent="Loading entity…";
   try{
-    const [ent, sanc, up] = await Promise.all([
-      api("/api/entity/" + encodeURIComponent(id)),
-      api("/api/entity/" + encodeURIComponent(id) + "/sanctions"),
-      api("/api/entity/" + encodeURIComponent(id) + "/ownership?direction=up")
+    const [ent,sanc,up] = await Promise.all([
+      api("/api/entity/"+encodeURIComponent(id)),
+      api("/api/entity/"+encodeURIComponent(id)+"/sanctions"),
+      api("/api/entity/"+encodeURIComponent(id)+"/ownership?direction=up")
     ]);
-    $("#status").textContent = "Entity loaded · sanctions " + sanc.took_ms
-      + " ms · ownership " + up.took_ms + " ms";
-
-    let html = `<div class="card">
-      <div class="row"><h3>${esc(ent.name)}</h3>
-      <span class="meta">${esc(ent.type)}${ent.jurisdiction? " · "+esc(ent.jurisdiction):""}</span></div>
-      <div>${entityChips(ent)}</div>
-      ${ent.aliases.length>1 ? '<div class="meta">Also filed as: '
-         + ent.aliases.filter(a=>a!==ent.name).map(esc).join(" · ") + '</div>' : ''}
-      <div class="meta">Controls ${ent.edge_counts.controls} ·
-        controlled by ${ent.edge_counts.controlled_by} · resolved from
-        ${ent.n_records} source record${ent.n_records===1?"":"s"}</div>`;
-
+    $("#status").textContent = `sanctions ${sanc.took_ms} ms · ownership ${up.took_ms} ms`;
+    let h=`<div class="card">
+      <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <h3>${esc(ent.name)}</h3>
+        <span style="color:var(--ink-2);font-size:13px">${esc(ent.type)}${ent.jurisdiction?" · "+esc(ent.jurisdiction):""}</span></div>
+      <div>${chips(ent)}</div>
+      ${ent.aliases.length>1?`<div style="color:var(--ink-2);font-size:13px">Also filed as: ${ent.aliases.filter(a=>a!==ent.name).map(esc).join(" · ")}</div>`:""}
+      <div style="color:var(--ink-2);font-size:13px">Controls ${ent.edge_counts.controls} ·
+        controlled by ${ent.edge_counts.controlled_by} · resolved from ${ent.n_records} source record${ent.n_records===1?"":"s"}</div>`;
     if(sanc.has_exposure){
-      html += `<div class="flagbox"><strong>Sanctions exposure: ${sanc.count}
-        controlling part${sanc.count===1?"y":"ies"}.</strong>
-        ${sanc.indirect_only
-          ? " None of them appears on this entity's own filing — the link is only visible through the chain."
-          : ""}</div>`;
-      html += sanc.hits.map(h => `
-        <div style="margin:10px 0">
-          <div><strong>${esc(h.owner.name)}</strong>
-            <span class="chip flag">sanctioned</span>
-            <span class="chip">${h.hops} hop${h.hops===1?"":"s"}</span>
-            <span class="chip">${esc(pct(h))}</span>
-            ${h.via_fiduciary ? '<span class="chip">via fiduciary</span>':''}
-            ${h.indirect_only ? '<span class="chip flag">indirect only</span>':''}</div>
-          <ul class="chain">${h.path.map(p =>
-            '<li>'+esc(p.name)+'</li>').join("")}</ul>
-        </div>`).join("");
+      h+=`<div class="flagbox"><strong>Sanctions exposure: ${sanc.count} controlling part${sanc.count===1?"y":"ies"}.</strong>
+        ${sanc.indirect_only?" None appears on this entity's own filing — the link is visible only through the chain.":""}</div>`;
+      h+=sanc.hits.map(x=>`<div style="margin:10px 0">
+        <div><strong>${esc(x.owner.name)}</strong>
+          <span class="chip flag">sanctioned</span>
+          <span class="chip">${x.hops} hop${x.hops===1?"":"s"}</span>
+          <span class="chip">${esc(pct(x))}</span>
+          ${x.via_fiduciary?'<span class="chip">via fiduciary</span>':""}</div>
+        <ul class="chain">${x.path.map(p=>"<li>"+esc(p.name)+"</li>").join("")}</ul></div>`).join("");
     } else {
-      html += `<div class="okbox">No sanctioned party found with control over this
-        entity, within ${up.max_hops} hops of the resolved graph.</div>`;
+      h+=`<div class="okbox">No sanctioned party found with control over this entity,
+          within ${up.max_hops} hops of the resolved graph.</div>`;
     }
-
     if(up.count){
-      html += `<div class="scroll"><table>
-        <thead><tr><th>Controlling party</th><th>Hops</th><th>Interval</th>
-        <th>Type</th><th>Basis</th></tr></thead><tbody>` +
-        up.nodes.map(n => `<tr>
+      h+=`<div class="scroll"><table><thead><tr><th>Controlling party</th><th class="num">Hops</th>
+        <th>Ownership</th><th>Type</th><th>Basis</th></tr></thead><tbody>`+
+        up.nodes.map(n=>`<tr>
           <td><span class="clickable" data-id="${esc(n.id)}">${esc(n.name)}</span>
-              ${n.is_sanctioned?'<span class="chip flag">sanctioned</span>':''}</td>
-          <td>${n.hops}</td><td>${esc(pct(n))}</td>
+              ${n.is_sanctioned?'<span class="chip flag">sanctioned</span>':""}</td>
+          <td class="num">${n.hops}</td><td>${esc(pct(n))}</td>
           <td>${esc(n.type)}${n.jurisdiction?" · "+esc(n.jurisdiction):""}</td>
-          <td>${n.control_kinds.length?esc(n.control_kinds.join(", ")):"ownership"}</td>
-        </tr>`).join("") + `</tbody></table></div>`;
+          <td>${n.control_kinds.length?esc(n.control_kinds.join(", ")):"ownership"}</td></tr>`).join("")
+        +`</tbody></table></div>`;
     }
-    html += `</div>`;
-    $("#detail").innerHTML = html;
-    document.querySelectorAll("#detail [data-id]").forEach(el =>
-      el.onclick = () => { showEntity(el.dataset.id); window.scrollTo({top:0,behavior:"smooth"}); });
-    $("#detail").scrollIntoView({behavior:"smooth", block:"start"});
-  }catch(err){ $("#status").textContent = "Error: " + err.message; }
+    $("#detail").innerHTML = h+`</div>`;
+    document.querySelectorAll("#detail [data-id]").forEach(el=>
+      el.onclick=()=>{showEntity(el.dataset.id); scrollTo({top:0,behavior:"smooth"});});
+    $("#detail").scrollIntoView({behavior:"smooth",block:"start"});
+  }catch(e){ $("#status").textContent="Error: "+e.message; }
 }
 
-$("#go").onclick = () => { const q=$("#q").value.trim(); if(q.length>=2) search(q); };
-$("#q").addEventListener("keydown", e => { if(e.key==="Enter") $("#go").click(); });
+$("#go").onclick=()=>{const q=$("#q").value.trim(); if(q.length>=2) search(q);};
+$("#q").addEventListener("keydown",e=>{ if(e.key==="Enter") $("#go").click(); });
 
 (async function init(){
+  loadOverview();
   try{
-    const h = await api("/health");
-    const m = h.index || {};
-    $("#idxmeta").textContent =
-      `Index: ${m.entities} canonical entities · ${m.edges} control edges · `
-      + `${m.sanctioned_entities} sanctioned · ${m.sanctions_exposure_links} exposure links · `
-      + `built ${m.built_at} in ${m.build_seconds}s`;
     const ex = await api("/api/sanctions/exposed?min_hops=2&limit=4");
     $("#examples").innerHTML = "Try an indirectly-exposed company: " +
-      ex.results.map(r => `<a data-q="${esc(r.name)}">${esc(r.name)}</a>`).join("");
-    document.querySelectorAll("#examples a").forEach(a =>
-      a.onclick = () => { $("#q").value = a.dataset.q; search(a.dataset.q); });
-  }catch(e){ $("#status").textContent = "Could not reach the API: " + e.message; }
+      ex.results.map(r=>`<a data-q="${esc(r.name)}">${esc(r.name)}</a>`).join("");
+    document.querySelectorAll("#examples a").forEach(a=>
+      a.onclick=()=>{ $("#q").value=a.dataset.q; search(a.dataset.q); });
+  }catch(e){}
 })();
 </script>
 </body>

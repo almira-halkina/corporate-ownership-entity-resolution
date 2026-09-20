@@ -515,6 +515,127 @@ def create_app(index_path: Path | None = None) -> FastAPI:
             out.append(ent)
         return {"min_hops": min_hops, "count": len(out), "results": out}
 
+    @app.get("/api/overview", tags=["query"])
+    def overview() -> dict[str, Any]:
+        """Everything the dashboard needs, in one round trip.
+
+        One endpoint rather than six because the dashboard is a single view:
+        six requests would give it six chances to render half-populated, and
+        the whole payload is a few kilobytes read from an index built for
+        exactly these aggregates.
+        """
+        started = time.perf_counter()
+        c = con()
+
+        totals = c.execute(
+            """
+            SELECT count(*)                                          AS entities,
+                   count(*) FILTER (WHERE entity_type = 'Company')   AS companies,
+                   count(*) FILTER (WHERE entity_type = 'Person')    AS people,
+                   coalesce(sum(n_records), 0)                       AS source_records,
+                   count(*) FILTER (WHERE len(sources) > 1)          AS cross_source,
+                   count(*) FILTER (WHERE n_records > 1)             AS merged,
+                   count(*) FILTER (WHERE is_sanctioned)             AS sanctioned,
+                   count(*) FILTER (WHERE is_pep)                    AS peps
+            FROM entities
+            """
+        ).fetchone()
+
+        edges = c.execute(
+            "SELECT count(*), count(*) FILTER (WHERE coalesce(is_active, true)) FROM edges"
+        ).fetchone()
+
+        by_hops = [
+            {"hops": h, "companies": n}
+            for h, n in c.execute(
+                "SELECT hops, count(DISTINCT asset_id) FROM sanctions_exposure GROUP BY 1 ORDER BY 1"
+            ).fetchall()
+        ]
+        indirect_only = c.execute(
+            """SELECT count(*) FROM (SELECT asset_id FROM sanctions_exposure
+                                     GROUP BY asset_id HAVING min(hops) >= 2)"""
+        ).fetchone()[0]
+        quantified = c.execute(
+            """SELECT count(*) FILTER (WHERE NOT control_only),
+                      count(*) FILTER (WHERE control_only)
+               FROM sanctions_exposure"""
+        ).fetchone()
+
+        top_controllers = [
+            {"id": i, "name": n, "companies": k, "is_pep": bool(p)}
+            for i, n, k, p in c.execute(
+                """
+                SELECT e.canonical_id, e.name, count(DISTINCT se.asset_id) AS k, e.is_pep
+                FROM sanctions_exposure se JOIN entities e ON e.canonical_id = se.risk_id
+                GROUP BY 1, 2, 4 ORDER BY k DESC, e.name LIMIT 8
+                """
+            ).fetchall()
+        ]
+
+        merge_distribution = [
+            {"filings": f, "entities": n}
+            for f, n in c.execute(
+                "SELECT n_records, count(*) FROM entities WHERE n_records > 1 GROUP BY 1 ORDER BY 1"
+            ).fetchall()
+        ]
+
+        indirect = [
+            {
+                "id": i,
+                "name": n,
+                "reg_number": r or None,
+                "hops": h,
+                "owner": o,
+                "owner_id": oid,
+                "min_percent": lo,
+                "max_percent": hi,
+                "control_only": bool(co),
+            }
+            for i, n, r, h, o, oid, lo, hi, co in c.execute(
+                """
+                WITH shortest AS (
+                    SELECT asset_id, min(hops) AS h FROM sanctions_exposure
+                    GROUP BY asset_id HAVING min(hops) >= 2
+                )
+                SELECT a.canonical_id, a.name, a.reg_number, se.hops,
+                       o.name, o.canonical_id, se.min_percent, se.max_percent, se.control_only
+                FROM shortest s
+                JOIN sanctions_exposure se ON se.asset_id = s.asset_id AND se.hops = s.h
+                JOIN entities a ON a.canonical_id = se.asset_id
+                JOIN entities o ON o.canonical_id = se.risk_id
+                ORDER BY se.hops DESC, a.name
+                """
+            ).fetchall()
+        ]
+
+        return {
+            "index": state["meta"],
+            "took_ms": round((time.perf_counter() - started) * 1000, 3),
+            "totals": {
+                "entities": totals[0],
+                "companies": totals[1],
+                "people": totals[2],
+                "source_records": totals[3],
+                "records_absorbed": totals[3] - totals[0],
+                "cross_source_entities": totals[4],
+                "merged_entities": totals[5],
+                "sanctioned_entities": totals[6],
+                "peps": totals[7],
+                "edges": edges[0],
+                "active_edges": edges[1],
+            },
+            "sanctions": {
+                "companies_exposed": sum(r["companies"] for r in by_hops),
+                "indirect_only_companies": indirect_only,
+                "by_hops": by_hops,
+                "links_quantified": quantified[0],
+                "links_control_only": quantified[1],
+            },
+            "top_controllers": top_controllers,
+            "merge_distribution": merge_distribution,
+            "indirect_companies": indirect,
+        }
+
     @app.get("/api/stats", tags=["ops"])
     def stats() -> dict[str, Any]:
         rows = con().execute(
