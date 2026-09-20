@@ -1,4 +1,22 @@
 services:
+  # The API. Builds its own serving index during the image build, so this is
+  # the only service needed to run the demo — `docker compose up service`
+  # brings up a working instance with no database and no other dependency.
+  service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ownership-service
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/health',timeout=4).status==200 else 1)\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
   neo4j:
     image: neo4j:5.26-community
     container_name: ownership-neo4j

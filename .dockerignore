@@ -1,0 +1,14 @@
+.git
+.github
+.mypy_cache
+.pytest_cache
+.ruff_cache
+**/__pycache__
+data
+outputs
+bench/results*.json
+docs
+tests
+orchestration
+*.duckdb
+.env

@@ -357,6 +357,39 @@ def export_ftm(
     _print_json({"written": count, "path": str(out)})
 
 
+@app.command("build-index")
+def build_index(
+    out: Path | None = typer.Option(None, "--out", help="Destination .duckdb file."),
+) -> None:
+    """Flatten the warehouse into the read-only serving index.
+
+    Run after `cluster`. Everything expensive for the API — the name index and
+    the sanctions closure — is computed here so the request path stays a lookup.
+    """
+    from ownership_er.serve.index import build_serving_index
+
+    _print_json(build_serving_index(out_path=out))
+
+
+@app.command("serve")
+def serve(
+    host: str = typer.Option("127.0.0.1", help="Bind address."),
+    port: int = typer.Option(8080, help="Bind port."),
+    index: Path | None = typer.Option(None, "--index", help="Serving index to read."),
+    reload: bool = typer.Option(False, "--reload", help="Auto-reload on code change."),
+) -> None:
+    """Serve the ownership API and its single-page front end."""
+    import os
+
+    import uvicorn
+
+    if index is not None:
+        os.environ["OER_SERVING_INDEX"] = str(index)
+    uvicorn.run(
+        "ownership_er.serve.api:app", host=host, port=port, reload=reload, log_level="info"
+    )
+
+
 @app.command("run-all")
 def run_all(
     fixtures: bool = typer.Option(True, help="Run against the committed fixture corpus."),

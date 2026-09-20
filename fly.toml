@@ -1,0 +1,40 @@
+# Fly.io deployment. Single container, no attached database, no volume:
+# the serving index ships inside the image.
+app = "ownership-graph"
+primary_region = "lhr"   # London: the corpus is UK Companies House.
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  OER_SERVING_INDEX = "/app/data/warehouse/serving.duckdb"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Scale to zero between visits. Measured cold start is ~0.7s from process
+  # launch to first 200, which is well inside what a reviewer clicking a link
+  # will tolerate, and it makes an always-available demo effectively free.
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "requests"
+    # Measured: throughput plateaus at ~225 rps on 2 shared vCPUs and latency
+    # grows linearly past roughly 4 concurrent requests. Queue beyond that
+    # rather than accepting work the machine cannot start on.
+    soft_limit = 8
+    hard_limit = 32
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/health"
+
+[[vm]]
+  size = "shared-cpu-2x"
+  memory = "512mb"

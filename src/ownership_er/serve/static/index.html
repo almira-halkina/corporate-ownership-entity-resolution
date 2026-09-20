@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Beneficial Ownership &amp; Sanctions Exposure</title>
+<style>
+  :root{
+    --bg:#fbfaf8; --panel:#fff; --ink:#1a1a1a; --muted:#6b6b6b; --line:#e4e1dc;
+    --accent:#1c4f8a; --flag:#a4212b; --flag-bg:#fdf1f1; --ok:#2c6e49; --chip:#f2efea;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+    --bg:#16181c; --panel:#1e2126; --ink:#e9e7e3; --muted:#9a9a9a; --line:#31353b;
+    --accent:#7fb0e8; --flag:#e88b92; --flag-bg:#2b1e20; --ok:#7fc0a0; --chip:#272b31;
+    color-scheme: dark;
+  }}
+  :root[data-theme="dark"]{
+    --bg:#16181c; --panel:#1e2126; --ink:#e9e7e3; --muted:#9a9a9a; --line:#31353b;
+    --accent:#7fb0e8; --flag:#e88b92; --flag-bg:#2b1e20; --ok:#7fc0a0; --chip:#272b31;
+    color-scheme: dark;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:1000px;margin:0 auto;padding:28px 16px 64px}
+  header h1{font-size:1.35rem;margin:0 0 4px;letter-spacing:-.01em}
+  header p{margin:0 0 20px;color:var(--muted);max-width:66ch}
+  .searchbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+  input[type=search]{flex:1 1 280px;min-width:0;padding:11px 13px;font-size:15px;
+    border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink)}
+  input[type=search]:focus{outline:2px solid var(--accent);outline-offset:-1px}
+  button{padding:11px 18px;font-size:15px;border:1px solid var(--accent);border-radius:8px;
+    background:var(--accent);color:#fff;cursor:pointer}
+  button.ghost{background:transparent;color:var(--accent)}
+  button:disabled{opacity:.55;cursor:default}
+  .examples{color:var(--muted);font-size:13px;margin-bottom:22px}
+  .examples a{color:var(--accent);cursor:pointer;text-decoration:underline;margin-right:10px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:14px 16px;margin-bottom:10px}
+  .card h3{margin:0 0 3px;font-size:1rem}
+  .row{display:flex;justify-content:space-between;gap:12px;align-items:baseline;flex-wrap:wrap}
+  .meta{color:var(--muted);font-size:13px}
+  .chip{display:inline-block;padding:2px 8px;border-radius:999px;background:var(--chip);
+    font-size:12px;margin:2px 4px 2px 0}
+  .chip.flag{background:var(--flag-bg);color:var(--flag);font-weight:600}
+  .chip.ok{color:var(--ok)}
+  .flagbox{border-left:3px solid var(--flag);background:var(--flag-bg);padding:11px 14px;
+    border-radius:0 8px 8px 0;margin:10px 0}
+  .okbox{border-left:3px solid var(--ok);padding:11px 14px;margin:10px 0}
+  .chain{list-style:none;padding:0;margin:8px 0 0}
+  .chain li{padding:5px 0 5px 20px;position:relative}
+  .chain li::before{content:"↳";position:absolute;left:2px;color:var(--muted)}
+  .chain li:first-child::before{content:"•"}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-weight:600;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+  .scroll{overflow-x:auto}
+  .clickable{cursor:pointer;color:var(--accent);text-decoration:underline}
+  .status{color:var(--muted);font-size:13px;min-height:20px;margin:10px 0}
+  footer{margin-top:34px;padding-top:14px;border-top:1px solid var(--line);
+    color:var(--muted);font-size:12.5px}
+  footer code{background:var(--chip);padding:1px 5px;border-radius:4px}
+  [hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Beneficial ownership &amp; sanctions exposure</h1>
+    <p>Search a company or person, then follow control upward. The interesting
+       result is a company whose own filings name nobody sanctioned, but which
+       is controlled through a chain by somebody who is.</p>
+  </header>
+
+  <div class="searchbar">
+    <input type="search" id="q" placeholder="Company or person name…" autocomplete="off">
+    <button id="go">Search</button>
+  </div>
+  <div class="examples" id="examples"></div>
+
+  <div class="status" id="status"></div>
+  <div id="results"></div>
+  <div id="detail"></div>
+
+  <footer>
+    <span id="idxmeta"></span><br>
+    API: <code>/api/search</code> · <code>/api/entity/{id}/ownership</code> ·
+    <code>/api/entity/{id}/sanctions</code> · <code>/health</code> · <code>/metrics</code>
+    · <a href="/docs" style="color:var(--accent)">OpenAPI docs</a>
+  </footer>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
+  ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+async function api(path){
+  const t0 = performance.now();
+  const r = await fetch(path);
+  const ms = (performance.now() - t0).toFixed(0);
+  if(!r.ok) throw new Error((await r.json().catch(()=>({detail:r.statusText}))).detail);
+  const data = await r.json();
+  data.__client_ms = ms;
+  return data;
+}
+
+function pct(n){
+  if(n.control_only) return "control, no %";
+  if(n.min_percent == null) return "—";
+  const lo = n.min_percent, hi = n.max_percent;
+  return (lo === hi) ? lo + "%" : lo + "–" + hi + "%";
+}
+
+function entityChips(e){
+  let out = "";
+  if(e.is_sanctioned) out += '<span class="chip flag">sanctioned</span>';
+  if(e.is_pep) out += '<span class="chip">PEP</span>';
+  if(e.jurisdiction) out += '<span class="chip">'+esc(e.jurisdiction)+'</span>';
+  if(e.reg_number) out += '<span class="chip">'+esc(e.reg_number)+'</span>';
+  return out;
+}
+
+async function search(q){
+  $("#detail").innerHTML = "";
+  $("#status").textContent = "Searching…";
+  try{
+    const d = await api("/api/search?q=" + encodeURIComponent(q) + "&limit=25");
+    $("#status").textContent = d.count + " result" + (d.count===1?"":"s")
+      + " · server " + d.took_ms + " ms · round trip " + d.__client_ms + " ms";
+    if(!d.count){ $("#results").innerHTML = '<div class="card">No entity matched that name.</div>'; return; }
+    $("#results").innerHTML = d.results.map(e => `
+      <div class="card">
+        <div class="row">
+          <h3><span class="clickable" data-id="${esc(e.id)}">${esc(e.name)}</span></h3>
+          <span class="meta">${esc(e.type)} · ${e.n_records} source record${e.n_records===1?"":"s"}</span>
+        </div>
+        <div>${entityChips(e)}${e.sanctions_exposure_links
+          ? '<span class="chip flag">'+e.sanctions_exposure_links+' sanctions link'
+            +(e.sanctions_exposure_links===1?"":"s")+'</span>' : ''}</div>
+        ${e.match.matched_on !== e.name
+          ? '<div class="meta">matched on alias: '+esc(e.match.matched_on)+'</div>' : ''}
+      </div>`).join("");
+    document.querySelectorAll("[data-id]").forEach(el =>
+      el.onclick = () => showEntity(el.dataset.id));
+  }catch(err){ $("#status").textContent = "Error: " + err.message; }
+}
+
+async function showEntity(id){
+  $("#status").textContent = "Loading entity…";
+  try{
+    const [ent, sanc, up] = await Promise.all([
+      api("/api/entity/" + encodeURIComponent(id)),
+      api("/api/entity/" + encodeURIComponent(id) + "/sanctions"),
+      api("/api/entity/" + encodeURIComponent(id) + "/ownership?direction=up")
+    ]);
+    $("#status").textContent = "Entity loaded · sanctions " + sanc.took_ms
+      + " ms · ownership " + up.took_ms + " ms";
+
+    let html = `<div class="card">
+      <div class="row"><h3>${esc(ent.name)}</h3>
+      <span class="meta">${esc(ent.type)}${ent.jurisdiction? " · "+esc(ent.jurisdiction):""}</span></div>
+      <div>${entityChips(ent)}</div>
+      ${ent.aliases.length>1 ? '<div class="meta">Also filed as: '
+         + ent.aliases.filter(a=>a!==ent.name).map(esc).join(" · ") + '</div>' : ''}
+      <div class="meta">Controls ${ent.edge_counts.controls} ·
+        controlled by ${ent.edge_counts.controlled_by} · resolved from
+        ${ent.n_records} source record${ent.n_records===1?"":"s"}</div>`;
+
+    if(sanc.has_exposure){
+      html += `<div class="flagbox"><strong>Sanctions exposure: ${sanc.count}
+        controlling part${sanc.count===1?"y":"ies"}.</strong>
+        ${sanc.indirect_only
+          ? " None of them appears on this entity's own filing — the link is only visible through the chain."
+          : ""}</div>`;
+      html += sanc.hits.map(h => `
+        <div style="margin:10px 0">
+          <div><strong>${esc(h.owner.name)}</strong>
+            <span class="chip flag">sanctioned</span>
+            <span class="chip">${h.hops} hop${h.hops===1?"":"s"}</span>
+            <span class="chip">${esc(pct(h))}</span>
+            ${h.via_fiduciary ? '<span class="chip">via fiduciary</span>':''}
+            ${h.indirect_only ? '<span class="chip flag">indirect only</span>':''}</div>
+          <ul class="chain">${h.path.map(p =>
+            '<li>'+esc(p.name)+'</li>').join("")}</ul>
+        </div>`).join("");
+    } else {
+      html += `<div class="okbox">No sanctioned party found with control over this
+        entity, within ${up.max_hops} hops of the resolved graph.</div>`;
+    }
+
+    if(up.count){
+      html += `<div class="scroll"><table>
+        <thead><tr><th>Controlling party</th><th>Hops</th><th>Interval</th>
+        <th>Type</th><th>Basis</th></tr></thead><tbody>` +
+        up.nodes.map(n => `<tr>
+          <td><span class="clickable" data-id="${esc(n.id)}">${esc(n.name)}</span>
+              ${n.is_sanctioned?'<span class="chip flag">sanctioned</span>':''}</td>
+          <td>${n.hops}</td><td>${esc(pct(n))}</td>
+          <td>${esc(n.type)}${n.jurisdiction?" · "+esc(n.jurisdiction):""}</td>
+          <td>${n.control_kinds.length?esc(n.control_kinds.join(", ")):"ownership"}</td>
+        </tr>`).join("") + `</tbody></table></div>`;
+    }
+    html += `</div>`;
+    $("#detail").innerHTML = html;
+    document.querySelectorAll("#detail [data-id]").forEach(el =>
+      el.onclick = () => { showEntity(el.dataset.id); window.scrollTo({top:0,behavior:"smooth"}); });
+    $("#detail").scrollIntoView({behavior:"smooth", block:"start"});
+  }catch(err){ $("#status").textContent = "Error: " + err.message; }
+}
+
+$("#go").onclick = () => { const q=$("#q").value.trim(); if(q.length>=2) search(q); };
+$("#q").addEventListener("keydown", e => { if(e.key==="Enter") $("#go").click(); });
+
+(async function init(){
+  try{
+    const h = await api("/health");
+    const m = h.index || {};
+    $("#idxmeta").textContent =
+      `Index: ${m.entities} canonical entities · ${m.edges} control edges · `
+      + `${m.sanctioned_entities} sanctioned · ${m.sanctions_exposure_links} exposure links · `
+      + `built ${m.built_at} in ${m.build_seconds}s`;
+    const ex = await api("/api/sanctions/exposed?min_hops=2&limit=4");
+    $("#examples").innerHTML = "Try an indirectly-exposed company: " +
+      ex.results.map(r => `<a data-q="${esc(r.name)}">${esc(r.name)}</a>`).join("");
+    document.querySelectorAll("#examples a").forEach(a =>
+      a.onclick = () => { $("#q").value = a.dataset.q; search(a.dataset.q); });
+  }catch(e){ $("#status").textContent = "Could not reach the API: " + e.message; }
+})();
+</script>
+</body>
+</html>
