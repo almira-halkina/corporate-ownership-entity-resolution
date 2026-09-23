@@ -9,9 +9,7 @@ from __future__ import annotations
 
 import duckdb
 import pytest
-from fastapi.testclient import TestClient
 
-from ownership_er.serve.api import create_app
 from ownership_er.serve.index import build_serving_index
 
 
@@ -25,6 +23,18 @@ def index_path(tmp_path_factory: pytest.TempPathFactory):
 
 @pytest.fixture(scope="module")
 def client(index_path):
+    """A test client, or a skip if the serving extra is not installed.
+
+    The import is deferred into the fixture rather than done at module scope
+    so that the index tests below — which need only duckdb — still run under a
+    narrower install. At module scope a missing fastapi aborts collection for
+    the whole suite, not just this file.
+    """
+    pytest.importorskip("fastapi", reason="install the [serve] extra to test the API")
+    from fastapi.testclient import TestClient
+
+    from ownership_er.serve.api import create_app
+
     with TestClient(create_app(index_path)) as c:
         yield c
 
@@ -150,9 +160,9 @@ def test_indirect_exposure_exists_and_is_flagged(client) -> None:
     `indirect_only` means no sanctioned party appears on the company's own
     filing, yet one controls it through the chain.
     """
-    indirect = client.get(
-        "/api/sanctions/exposed", params={"min_hops": 2, "limit": 5}
-    ).json()["results"]
+    indirect = client.get("/api/sanctions/exposed", params={"min_hops": 2, "limit": 5}).json()[
+        "results"
+    ]
     assert indirect, "fixture corpus should contain indirectly-exposed companies"
     body = client.get(f"/api/entity/{indirect[0]['id']}/sanctions").json()
     assert body["has_exposure"] and body["indirect_only"]
@@ -217,9 +227,7 @@ def test_overview_indirect_companies_are_not_themselves_sanctioned(client) -> No
 def test_overview_agrees_with_the_exposed_endpoint(client) -> None:
     listed = client.get("/api/sanctions/exposed", params={"min_hops": 2, "limit": 500}).json()
     overview = client.get("/api/overview").json()
-    assert {r["id"] for r in listed["results"]} == {
-        c["id"] for c in overview["indirect_companies"]
-    }
+    assert {r["id"] for r in listed["results"]} == {c["id"] for c in overview["indirect_companies"]}
 
 
 def test_overview_control_only_links_report_no_percentage(client) -> None:

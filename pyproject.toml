@@ -56,6 +56,10 @@ serve = ["fastapi>=0.110", "uvicorn[standard]>=0.29"]
 # LLM adjudication of borderline pairs
 llm = ["anthropic>=0.34"]
 dev = [
+  # Self-reference: the test suite covers the serving layer, so anything that
+  # installs [dev] needs fastapi and uvicorn too. Without this, `pytest` fails
+  # at collection in every job that installs [dev] but not [serve].
+  "ownership-er[serve]",
   "pytest>=8.1",
   "pytest-cov>=5.0",
   "ruff>=0.4",
@@ -130,7 +134,7 @@ check_untyped_defs = true
 module = [
   "duckdb.*", "splink.*", "neo4j.*",
   "followthemoney.*", "anthropic.*", "pyarrow.*", "jellyfish.*", "icu.*",
-  "fastapi.*", "uvicorn.*", "httpx.*",
+  "fastapi.*", "uvicorn.*",
 ]
 ignore_missing_imports = true
 

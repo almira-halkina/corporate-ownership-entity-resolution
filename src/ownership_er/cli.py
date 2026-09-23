@@ -385,9 +385,7 @@ def serve(
 
     if index is not None:
         os.environ["OER_SERVING_INDEX"] = str(index)
-    uvicorn.run(
-        "ownership_er.serve.api:app", host=host, port=port, reload=reload, log_level="info"
-    )
+    uvicorn.run("ownership_er.serve.api:app", host=host, port=port, reload=reload, log_level="info")
 
 
 @app.command("run-all")

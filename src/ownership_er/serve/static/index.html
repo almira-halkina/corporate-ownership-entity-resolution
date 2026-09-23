@@ -99,13 +99,68 @@
   footer{margin-top:30px;padding-top:13px;border-top:1px solid var(--border);color:var(--ink-2);font-size:12.5px}
   a{color:var(--series-1)}
   [hidden]{display:none!important}
+  /* Disclosure modal. Shown once per browser session — dismissing it inside a
+     visit does not hide it from the next visitor. */
+  .backdrop{position:fixed;inset:0;background:rgba(11,11,11,.55);display:flex;
+    align-items:center;justify-content:center;padding:18px;z-index:20}
+  .modal{background:var(--surface);border:1px solid var(--border);border-radius:12px;
+    max-width:620px;width:100%;max-height:88vh;overflow:auto;padding:22px 24px;
+    box-shadow:0 18px 48px rgba(0,0,0,.28)}
+  .modal h2{margin:0 0 4px;font-size:1.1rem}
+  .modal .kicker{color:var(--critical);font-weight:700;font-size:12px;
+    letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
+  .modal p{margin:10px 0;font-size:14.5px}
+  .modal ul{margin:8px 0 0;padding-left:20px;font-size:14.5px}
+  .modal li{margin:6px 0}
+  .modal .actions{margin-top:18px;display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+  .modal button{padding:10px 20px;font:inherit;border-radius:8px;cursor:pointer;
+    border:1px solid var(--series-1);background:var(--series-1);color:#fff}
+  .modal button.sec{background:transparent;color:var(--series-1)}
+  .badge{display:inline-block;padding:3px 10px;border-radius:999px;
+    background:var(--critical-bg);color:var(--critical);font-size:12px;font-weight:650;
+    vertical-align:middle;margin-left:8px}
+  .datanote{color:var(--muted);font-size:12.5px;margin:0 0 10px}
   .tip{position:fixed;pointer-events:none;background:var(--ink);color:var(--page);
     padding:5px 9px;border-radius:6px;font-size:12.5px;opacity:0;transition:opacity .1s;z-index:9}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>Beneficial ownership &amp; sanctions exposure</h1>
+  <div class="backdrop" id="notice" role="dialog" aria-modal="true"
+       aria-labelledby="noticeTitle" hidden>
+    <div class="modal">
+      <div class="kicker">Note — please read</div>
+      <h2 id="noticeTitle">This demo runs on synthetic data</h2>
+      <p>Every company, person and sanctions entry on this site is
+         <strong>invented</strong>. Nothing here is a finding about a real person
+         or a real company, and no name shown is anyone's.</p>
+      <p><strong>The pipeline itself is real.</strong> It reads the genuine
+         Companies House and OpenSanctions publications in their native formats
+         and runs against them unmodified — the demo corpus is generated in
+         exactly those formats so every stage behaves identically.</p>
+      <p>Two reasons the public demo does not serve the real register:</p>
+      <ul>
+        <li><strong>Publishing inferences about real people.</strong> Entity
+            resolution is probabilistic. At roughly 99.5% cluster precision a
+            small share of merges is wrong, and a wrong merge here would assert
+            that a named, living person is connected to sanctions. Publishing
+            that carries real accuracy and data-protection obligations under UK
+            GDPR that a demonstration should not take on.</li>
+        <li><strong>Volume.</strong> The full register is about 5.6M companies
+            and 12M filings — several gigabytes of working set and a serving
+            index far beyond what a free-tier container can hold.</li>
+      </ul>
+      <p>Using synthetic data also buys something real data cannot: the true
+         answer is known by construction, which is the only way to measure
+         <em>recall</em> — you can never see what blocking silently dropped.</p>
+      <div class="actions">
+        <button class="sec" id="noticeMore">Read the method</button>
+        <button id="noticeOk">Understood</button>
+      </div>
+    </div>
+  </div>
+
+  <h1>Beneficial ownership &amp; sanctions exposure<span class="badge">Synthetic demo data</span></h1>
   <p class="sub">Who ultimately controls a company — and whether anyone in that
      chain is under sanctions, even when they never appear on the company's own filing.</p>
 
@@ -124,6 +179,8 @@
     <div class="kpis" id="kpis"></div>
     <div class="charts" id="charts"></div>
     <h2>Companies exposed only through a chain</h2>
+    <p class="datanote">Synthetic corpus — these are generated companies and
+       generated sanctions entries, not real ones.</p>
     <p class="sub">Every company here has clean filings of its own. The sanctioned
        party is upstream, and only becomes visible once records from different
        sources are resolved to the same person.</p>
@@ -132,6 +189,8 @@
 
   <!-- ──────────────────────────────── SEARCH ──────────────────────────────── -->
   <section id="panel-search" hidden>
+    <p class="datanote">Every result below is a synthetic demonstration record —
+       invented names and companies, not real entities.</p>
     <div class="searchbar">
       <input type="search" id="q" placeholder="Company or person name…" autocomplete="off">
       <button class="go" id="go">Search</button>
@@ -313,6 +372,33 @@ async function api(p){
   if(!r.ok) throw new Error((await r.json().catch(()=>({detail:r.statusText}))).detail);
   return r.json();
 }
+
+/* ── disclosure notice ─────────────────────────────────────────────────
+   Shown once per browser session rather than remembered forever: a reviewer
+   arriving fresh must see it, and someone clicking around inside one visit
+   should not be nagged. Storage access is wrapped because private windows
+   throw on it. */
+const NOTICE_KEY = "oer.synthetic.ack";
+function noticeAcked(){
+  try { return sessionStorage.getItem(NOTICE_KEY) === "1"; } catch(e){ return false; }
+}
+function ackNotice(){
+  try { sessionStorage.setItem(NOTICE_KEY, "1"); } catch(e){}
+  $("#notice").hidden = true;
+  document.body.style.overflow = "";
+}
+function openNotice(){
+  $("#notice").hidden = false;
+  document.body.style.overflow = "hidden";
+  $("#noticeOk").focus();
+}
+$("#noticeOk").onclick = ackNotice;
+$("#noticeMore").onclick = () => { ackNotice(); show("about"); };
+$("#notice").addEventListener("click", e => { if(e.target === $("#notice")) ackNotice(); });
+document.addEventListener("keydown", e => {
+  if(e.key === "Escape" && !$("#notice").hidden) ackNotice();
+});
+if(!noticeAcked()) openNotice();
 
 /* ── tabs ──────────────────────────────────────────────────────────────── */
 const TABS = ["overview","search","about"];
@@ -501,7 +587,9 @@ async function showEntity(id){
         controlled by ${ent.edge_counts.controlled_by} · resolved from ${ent.n_records} source record${ent.n_records===1?"":"s"}</div>`;
     if(sanc.has_exposure){
       h+=`<div class="flagbox"><strong>Sanctions exposure: ${sanc.count} controlling part${sanc.count===1?"y":"ies"}.</strong>
-        ${sanc.indirect_only?" None appears on this entity's own filing — the link is visible only through the chain.":""}</div>`;
+        ${sanc.indirect_only?" None appears on this entity's own filing — the link is visible only through the chain.":""}
+        <div style="margin-top:6px;font-weight:400;font-size:12.5px;opacity:.85">
+          Synthetic demonstration record — not a real person or company.</div></div>`;
       h+=sanc.hits.map(x=>`<div style="margin:10px 0">
         <div><strong>${esc(x.owner.name)}</strong>
           <span class="chip flag">sanctioned</span>

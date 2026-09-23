@@ -103,6 +103,27 @@ class _Latency:
         return {"p50": pct(0.50), "p95": pct(0.95), "p99": pct(0.99), "max": round(ordered[-1], 3)}
 
 
+def _one(row: tuple[Any, ...] | None) -> tuple[Any, ...]:
+    """Unwrap a ``fetchone()`` that cannot legitimately be empty.
+
+    DuckDB types ``fetchone()`` as optional, correctly — but every call site
+    below is either an aggregate (which always returns a row) or a lookup whose
+    key was existence-checked first. ``None`` here is a broken invariant, not a
+    missing record, so it raises rather than returning a default that would
+    quietly become a zero in a published figure.
+    """
+    if row is None:  # pragma: no cover - defensive
+        raise RuntimeError("query that must return one row returned none")
+    return row
+
+
+def _q1(
+    cur: duckdb.DuckDBPyConnection, sql: str, params: list[Any] | None = None
+) -> tuple[Any, ...]:
+    """Run a query that returns exactly one row, and return that row."""
+    return _one(cur.execute(sql, params or []).fetchone())
+
+
 def _row_to_entity(row: tuple[Any, ...]) -> dict[str, Any]:
     return {
         "id": row[0],
@@ -256,8 +277,10 @@ def create_app(index_path: Path | None = None) -> FastAPI:
         """
         started = time.perf_counter()
         needle = " ".join(q.lower().split())
-        rows = con().execute(
-            f"""
+        rows = (
+            con()
+            .execute(
+                f"""
             WITH hits AS (
                 SELECT ni.canonical_id,
                        max(CASE
@@ -278,8 +301,10 @@ def create_app(index_path: Path | None = None) -> FastAPI:
                      e.n_records DESC, e.name
             LIMIT ?
             """,
-            [needle, needle, needle, limit],
-        ).fetchall()
+                [needle, needle, needle, limit],
+            )
+            .fetchall()
+        )
 
         results = []
         for r in rows:
@@ -300,9 +325,11 @@ def create_app(index_path: Path | None = None) -> FastAPI:
     # ---------------------------------------------------------------- entity
 
     def _fetch_entity(entity_id: str) -> dict[str, Any]:
-        row = con().execute(
-            f"SELECT {_ENTITY_COLS} FROM entities e WHERE e.canonical_id = ?", [entity_id]
-        ).fetchone()
+        row = (
+            con()
+            .execute(f"SELECT {_ENTITY_COLS} FROM entities e WHERE e.canonical_id = ?", [entity_id])
+            .fetchone()
+        )
         if row is None:
             raise HTTPException(status_code=404, detail=f"unknown entity {entity_id!r}")
         return _row_to_entity(row)
@@ -310,7 +337,8 @@ def create_app(index_path: Path | None = None) -> FastAPI:
     @app.get("/api/entity/{entity_id}", tags=["query"])
     def entity(entity_id: str) -> dict[str, Any]:
         ent = _fetch_entity(entity_id)
-        counts = con().execute(
+        counts = _q1(
+            con(),
             """
             SELECT
               (SELECT count(*) FROM edges WHERE owner_id = ?) AS controls,
@@ -318,7 +346,7 @@ def create_app(index_path: Path | None = None) -> FastAPI:
               (SELECT count(*) FROM sanctions_exposure WHERE asset_id = ?) AS exposure
             """,
             [entity_id, entity_id, entity_id],
-        ).fetchone()
+        )
         ent["edge_counts"] = {
             "controls": counts[0],
             "controlled_by": counts[1],
@@ -356,8 +384,10 @@ def create_app(index_path: Path | None = None) -> FastAPI:
                 break
             ids = [f.id for f in frontier]
             placeholders = ",".join("?" * len(ids))
-            rows = con().execute(
-                f"""
+            rows = (
+                con()
+                .execute(
+                    f"""
                 SELECT g.{step_from} AS from_id, g.{step_to} AS to_id,
                        g.min_percent, g.max_percent, g.control_kinds,
                        g.has_hard_control, g.via_fiduciary, g.n_filings,
@@ -365,8 +395,10 @@ def create_app(index_path: Path | None = None) -> FastAPI:
                 FROM edges g JOIN entities e ON e.canonical_id = g.{step_to}
                 WHERE g.{step_from} IN ({placeholders}) AND coalesce(g.is_active, true)
                 """,
-                ids,
-            ).fetchall()
+                    ids,
+                )
+                .fetchall()
+            )
             by_from: dict[str, list[tuple[Any, ...]]] = {}
             for r in rows:
                 by_from.setdefault(r[0], []).append(r)
@@ -439,8 +471,10 @@ def create_app(index_path: Path | None = None) -> FastAPI:
         """
         ent = _fetch_entity(entity_id)
         started = time.perf_counter()
-        rows = con().execute(
-            f"""
+        rows = (
+            con()
+            .execute(
+                f"""
             SELECT se.risk_id, se.hops, se.min_percent, se.max_percent,
                    se.control_only, se.via_fiduciary, se.path_ids, {_ENTITY_COLS}
             FROM sanctions_exposure se
@@ -448,18 +482,22 @@ def create_app(index_path: Path | None = None) -> FastAPI:
             WHERE se.asset_id = ?
             ORDER BY se.hops ASC, se.max_percent DESC NULLS LAST
             """,
-            [entity_id],
-        ).fetchall()
+                [entity_id],
+            )
+            .fetchall()
+        )
 
         path_ids = {pid for r in rows for pid in (r[6] or [])}
         names: dict[str, str] = {}
         if path_ids:
             ph = ",".join("?" * len(path_ids))
             names = dict(
-                con().execute(
+                con()
+                .execute(
                     f"SELECT canonical_id, name FROM entities WHERE canonical_id IN ({ph})",
                     list(path_ids),
-                ).fetchall()
+                )
+                .fetchall()
             )
 
         hits = []
@@ -496,8 +534,10 @@ def create_app(index_path: Path | None = None) -> FastAPI:
         ``min_hops=2`` is the interesting view: those are the companies whose
         own filings name nobody sanctioned.
         """
-        rows = con().execute(
-            f"""
+        rows = (
+            con()
+            .execute(
+                f"""
             SELECT {_ENTITY_COLS}, min(se.hops) AS shortest, count(*) AS n_owners
             FROM sanctions_exposure se JOIN entities e ON e.canonical_id = se.asset_id
             WHERE se.hops >= ?
@@ -505,8 +545,10 @@ def create_app(index_path: Path | None = None) -> FastAPI:
             ORDER BY shortest DESC, n_owners DESC, e.name
             LIMIT ?
             """,
-            [min_hops, limit],
-        ).fetchall()
+                [min_hops, limit],
+            )
+            .fetchall()
+        )
         out = []
         for r in rows:
             ent = _row_to_entity(r)
@@ -527,7 +569,8 @@ def create_app(index_path: Path | None = None) -> FastAPI:
         started = time.perf_counter()
         c = con()
 
-        totals = c.execute(
+        totals = _q1(
+            c,
             """
             SELECT count(*)                                          AS entities,
                    count(*) FILTER (WHERE entity_type = 'Company')   AS companies,
@@ -538,12 +581,12 @@ def create_app(index_path: Path | None = None) -> FastAPI:
                    count(*) FILTER (WHERE is_sanctioned)             AS sanctioned,
                    count(*) FILTER (WHERE is_pep)                    AS peps
             FROM entities
-            """
-        ).fetchone()
+            """,
+        )
 
-        edges = c.execute(
-            "SELECT count(*), count(*) FILTER (WHERE coalesce(is_active, true)) FROM edges"
-        ).fetchone()
+        edges = _q1(
+            c, "SELECT count(*), count(*) FILTER (WHERE coalesce(is_active, true)) FROM edges"
+        )
 
         by_hops = [
             {"hops": h, "companies": n}
@@ -551,15 +594,17 @@ def create_app(index_path: Path | None = None) -> FastAPI:
                 "SELECT hops, count(DISTINCT asset_id) FROM sanctions_exposure GROUP BY 1 ORDER BY 1"
             ).fetchall()
         ]
-        indirect_only = c.execute(
+        indirect_only = _q1(
+            c,
             """SELECT count(*) FROM (SELECT asset_id FROM sanctions_exposure
-                                     GROUP BY asset_id HAVING min(hops) >= 2)"""
-        ).fetchone()[0]
-        quantified = c.execute(
+                                     GROUP BY asset_id HAVING min(hops) >= 2)""",
+        )[0]
+        quantified = _q1(
+            c,
             """SELECT count(*) FILTER (WHERE NOT control_only),
                       count(*) FILTER (WHERE control_only)
-               FROM sanctions_exposure"""
-        ).fetchone()
+               FROM sanctions_exposure""",
+        )
 
         top_controllers = [
             {"id": i, "name": n, "companies": k, "is_pep": bool(p)}
@@ -638,19 +683,20 @@ def create_app(index_path: Path | None = None) -> FastAPI:
 
     @app.get("/api/stats", tags=["ops"])
     def stats() -> dict[str, Any]:
-        rows = con().execute(
-            "SELECT hops, count(*) FROM sanctions_exposure GROUP BY 1 ORDER BY 1"
-        ).fetchall()
+        rows = (
+            con()
+            .execute("SELECT hops, count(*) FROM sanctions_exposure GROUP BY 1 ORDER BY 1")
+            .fetchall()
+        )
         return {
             "index": state["meta"],
             "exposure_by_hops": {str(h): n for h, n in rows},
-            "indirect_only_companies": con()
-            .execute(
+            "indirect_only_companies": _q1(
+                con(),
                 """SELECT count(*) FROM (
                        SELECT asset_id FROM sanctions_exposure
-                       GROUP BY asset_id HAVING min(hops) >= 2)"""
-            )
-            .fetchone()[0],
+                       GROUP BY asset_id HAVING min(hops) >= 2)""",
+            )[0],
         }
 
     # -------------------------------------------------------------------- ui

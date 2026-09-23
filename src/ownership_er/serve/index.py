@@ -105,6 +105,20 @@ CREATE TABLE meta (
 """
 
 
+def _one(row: tuple[Any, ...] | None) -> tuple[Any, ...]:
+    """Unwrap a ``fetchone()`` that cannot legitimately be empty.
+
+    DuckDB types ``fetchone()`` as optional, correctly — but every call site
+    below is either an aggregate (which always returns a row) or a lookup whose
+    key was existence-checked first. ``None`` here is a broken invariant, not a
+    missing record, so it raises rather than returning a default that would
+    quietly become a zero in a published figure.
+    """
+    if row is None:  # pragma: no cover - defensive
+        raise RuntimeError("query that must return one row returned none")
+    return row
+
+
 def default_index_path(settings: Settings | None = None) -> Path:
     settings = settings or get_settings()
     return settings.paths.data / "warehouse" / "serving.duckdb"
@@ -219,8 +233,7 @@ def _build_sanctions_closure(con: duckdb.DuckDBPyConnection) -> int:
         WHERE rn = 1
         """
     )
-    row = con.execute("SELECT count(*) FROM sanctions_exposure").fetchone()
-    return row[0] if row else 0
+    return int(_one(con.execute("SELECT count(*) FROM sanctions_exposure").fetchone())[0])
 
 
 def build_serving_index(
@@ -232,9 +245,7 @@ def build_serving_index(
     settings = settings or get_settings()
     warehouse = settings.paths.warehouse
     if not warehouse.exists():
-        raise FileNotFoundError(
-            f"no warehouse at {warehouse}; run `oer run-all --fixtures` first"
-        )
+        raise FileNotFoundError(f"no warehouse at {warehouse}; run `oer run-all --fixtures` first")
 
     out_path = out_path or default_index_path(settings)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -253,13 +264,11 @@ def build_serving_index(
         # names against the warehouse unchanged. Writes are qualified with the
         # serving catalog explicitly. Reusing that SQL rather than restating it
         # is what stops the graph and serving backends from drifting apart.
-        serving_db = con.execute("SELECT current_database()").fetchone()[0]
+        serving_db = _one(con.execute("SELECT current_database()").fetchone())[0]
         con.execute(f"ATTACH '{warehouse}' AS wh (READ_ONLY)")
         con.execute("SET search_path='wh'")
 
-        con.execute(
-            f"INSERT INTO {serving_db}.entities SELECT * FROM ({canonical_nodes_sql()})"
-        )
+        con.execute(f"INSERT INTO {serving_db}.entities SELECT * FROM ({canonical_nodes_sql()})")
         con.execute(
             f"""INSERT INTO {serving_db}.edges
                 SELECT owner_id, asset_id, min_percent, max_percent, control_kinds,
@@ -284,16 +293,16 @@ def build_serving_index(
             con.execute(stmt)
 
         counts = {
-            "entities": con.execute("SELECT count(*) FROM entities").fetchone()[0],
-            "edges": con.execute("SELECT count(*) FROM edges").fetchone()[0],
-            "name_variants": con.execute("SELECT count(*) FROM name_index").fetchone()[0],
-            "sanctioned_entities": con.execute(
-                "SELECT count(*) FROM entities WHERE is_sanctioned"
-            ).fetchone()[0],
+            "entities": _one(con.execute("SELECT count(*) FROM entities").fetchone())[0],
+            "edges": _one(con.execute("SELECT count(*) FROM edges").fetchone())[0],
+            "name_variants": _one(con.execute("SELECT count(*) FROM name_index").fetchone())[0],
+            "sanctioned_entities": _one(
+                con.execute("SELECT count(*) FROM entities WHERE is_sanctioned").fetchone()
+            )[0],
             "sanctions_exposure_links": n_exposure,
-            "companies_with_exposure": con.execute(
-                "SELECT count(DISTINCT asset_id) FROM sanctions_exposure"
-            ).fetchone()[0],
+            "companies_with_exposure": _one(
+                con.execute("SELECT count(DISTINCT asset_id) FROM sanctions_exposure").fetchone()
+            )[0],
         }
         elapsed = round(time.perf_counter() - started, 3)
         meta = {
@@ -303,9 +312,7 @@ def build_serving_index(
             "max_hops": str(MAX_HOPS),
             "source_warehouse": str(warehouse),
         }
-        con.executemany(
-            "INSERT INTO meta VALUES (?, ?)", list(meta.items())
-        )
+        con.executemany("INSERT INTO meta VALUES (?, ?)", list(meta.items()))
         con.execute("CHECKPOINT")
     finally:
         con.close()
