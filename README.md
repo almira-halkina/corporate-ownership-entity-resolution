@@ -1,5 +1,7 @@
 # Corporate Ownership Entity Resolution
 
+**▶ Live dashboard: [corporate-ownership-entity-resolution.onrender.com](https://corporate-ownership-entity-resolution.onrender.com/)** (free hosting: the first load can take 30–60 seconds while it wakes up)
+
 A record-linkage pipeline that resolves beneficial-ownership records from **UK
 Companies House** and **OpenSanctions** into canonical entities, then loads them
 into a graph database so ownership and control can be traversed across
